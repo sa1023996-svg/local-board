@@ -197,9 +197,10 @@
         </div>
       </div>
 
-      <!-- Create Post Box inside Profile -->
-      <div class="box">
-        <input type="text" id="userName" placeholder="Enter your name">
+      <!-- Create Post Button & Hidden Box inside Profile -->
+      <button type="button" style="background:#1877f2;margin:0 0 12px 0;padding:10px;border-radius:8px;" onclick="toggleCreatePost()">➕ Create Post</button>
+      <div class="box" id="createPostBox" style="display:none;">
+        <input type="hidden" id="userName">
 <input type="hidden" id="userType" value="Personal">
         <textarea id="postText" rows="3" placeholder="Write something for people within 3 KM..."></textarea>
         <div class="media-bar">
@@ -422,6 +423,11 @@
       if (tab === "friends") { closeChat(); renderFriendsUI(); }
     };
 
+    window.toggleCreatePost = () => {
+      const b = document.getElementById("createPostBox");
+      b.style.display = (b.style.display === "block") ? "none" : "block";
+    };
+
     window.toggleEditProfile = () => {
       const f = document.getElementById("editProfileForm");
       f.style.display = (f.style.display === "block") ? "none" : "block";
@@ -527,6 +533,7 @@
       recordedBlob = null;
       document.getElementById("mediaStatus").innerText = "";
       postBtn.disabled = false;
+      document.getElementById("createPostBox").style.display = "none";
       alert("Posted! Check Home feed.");
     };
 
