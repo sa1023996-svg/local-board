@@ -1156,6 +1156,13 @@
       _origOpenPub(uid, uname);
     };
 
+    // Auto-select Today filter on load
+    setTimeout(() => {
+      const btns = Array.from(document.querySelectorAll("button"));
+      const todayBtn = btns.find(b => b.innerText.trim() === "Today");
+      if (todayBtn) todayBtn.click();
+    }, 300);
+
     // Initialize everything cleanly
     applyLang();
     loadProfileUI();
