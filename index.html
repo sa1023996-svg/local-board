@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Local Chat Board</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💬</text></svg>">
+  <style>
+    body { font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 12px 12px 75px 12px; }
+    .container { max-width: 500px; margin: auto; }
+    .header { background: #1877f2; color: white; padding: 8px 12px; border-radius: 8px; text-align: center; margin-bottom: 10px; }
+    .header h2 { margin: 0; font-size: 16px; }
+    #locStatus { font-size: 11px; margin-top: 2px; color: #ffe600; }
+    .lang-bar { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+    .lang-bar select { width: auto; padding: 4px 8px; margin: 0; border-radius: 6px; border: 1px solid #ccc; font-size: 12px; background: white; color: #333; }
+    .box { background: white; padding: 14px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.08); margin-bottom: 12px; }
+    input, select, textarea, button { width: 100%; padding: 10px; margin-top: 8px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; font-size: 14px; }
+    button { background: #1877f2; color: white; border: none; font-weight: bold; cursor: pointer; }
+    button:hover { background: #145dbf; }
+    .filter-bar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 8px; align-items: center; }
+    .filter-btn { width: auto; margin: 0; padding: 6px 11px; background: white; color: #333; border: 1px solid #ccc; border-radius: 20px; font-size: 12px; white-space: nowrap; }
+    .filter-btn.active { background: #1877f2; color: white; border-color: #1877f2; }
+    .date-input { width: auto; margin: 0; padding: 5px 8px; border-radius: 20px; font-size: 12px; background: white; }
+    .date-divider { text-align: center; margin: 14px 0 10px 0; }
+    .date-divider span { background: #d8dadf; color: #333; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+    .post { background: white; padding: 12px; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .post-header { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #555; margin-bottom: 4px; }
+    .post-time { font-size: 11px; color: #888; margin-bottom: 6px; }
+    .badge { background: #e7f3ff; color: #1877f2; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 11px; }
+    .mini-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 6px; }
+    .user-link { cursor: pointer; color: #1877f2; }
+    .user-link:hover { text-decoration: underline; }
+    .add-friend-btn { background: #e7f3ff; color: #1877f2; border: 1px solid #b6d4fe; border-radius: 12px; padding: 2px 8px; font-size: 11px; margin: 0 0 0 6px; width: auto; display: inline-block; }
+    .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .actions button { width: auto; padding: 6px 12px; background: #f0f2f5; color: #333; font-size: 13px; margin-top: 0; }
+    .comments-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; display: none; }
+    .comment-item { background: #f7f8fa; padding: 8px 10px; border-radius: 8px; margin-bottom: 6px; font-size: 13px; }
+    .comment-meta { font-size: 11px; color: #65676b; margin-bottom: 2px; display: flex; justify-content: space-between; }
+    .comment-form { display: flex; gap: 6px; margin-top: 8px; }
+    .comment-form input { margin-top: 0; padding: 8px; font-size: 13px; flex: 1; }
+    .comment-form button { width: auto; margin-top: 0; padding: 8px 14px; font-size: 13px; }
+    .media-bar { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+    .media-btn { width: auto; margin: 0; padding: 7px 12px; background: #e7f3ff; color: #1877f2; border: 1px solid #b6d4fe; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; }
+    .media-btn.recording { background: #ffe6e6; color: #d93025; border-color: #f5c2c7; }
+    .media-status { font-size: 12px; color: #555; margin-top: 6px; }
+    .post-img { width: 100%; max-height: 320px; object-fit: cover; border-radius: 8px; margin-top: 8px; }
+    .post-audio { width: 100%; margin-top: 8px; height: 36px; }
+    .del-btn { background: #ffe6e6; color: #d93025; border: none; border-radius: 6px; padding: 4px 8px; font-size: 11px; width: auto; margin: 0; cursor: pointer; }
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #ddd; display: flex; justify-content: space-around; padding: 8px 0; z-index: 999; box-shadow: 0 -2px 5px rgba(0,0,0,0.06); }
+    .nav-btn { background: none; border: none; color: #65676b; font-size: 14px; font-weight: bold; margin: 0; padding: 6px 16px; width: auto; cursor: pointer; }
+    .nav-btn.active { color: #1877f2; border-bottom: 3px solid #1877f2; border-radius: 0; }
+    .profile-card { background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.08); margin-bottom: 12px; }
+    .cover-box { position: relative; height: 140px; background: linear-gradient(135deg, #1877f2, #00c6ff); }
+    .cover-box img { width: 100%; height: 100%; object-fit: cover; }
+    .cam-btn { position: absolute; right: 10px; bottom: 10px; background: rgba(0,0,0,0.65); color: white; border: none; border-radius: 50%; width: 34px; height: 34px; padding: 0; margin: 0; font-size: 16px; cursor: pointer; }
+    .avatar-wrap { position: relative; width: 104px; height: 104px; margin: -52px auto 8px auto; }
+    .avatar-wrap img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 4px solid white; background: #e4e6eb; }
+    .avatar-cam { position: absolute; right: 0; bottom: 2px; background: #e4e6eb; color: #111; border: 2px solid white; border-radius: 50%; width: 30px; height: 30px; padding: 0; margin: 0; font-size: 14px; cursor: pointer; }
+    .profile-info { text-align: center; padding: 0 15px 15px 15px; }
+    .profile-info h2 { margin: 4px 0; font-size: 20px; }
+    .profile-role { color: #65676b; font-size: 14px; margin-bottom: 10px; }
+    .glance-box { text-align: left; border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px; font-size: 13px; color: #333; line-height: 1.8; }
+    .edit-form { display: none; text-align: left; border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px; }
+    .friend-card { background: white; padding: 12px; border-radius: 10px; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); display: flex; justify-content: space-between; align-items: center; }
+    .friend-card button { width: auto; margin: 0 0 0 6px; padding: 6px 12px; font-size: 12px; }
+    .chat-box { background: white; border-radius: 10px; padding: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.08); }
+    .chat-messages { height: 280px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; padding: 10px; margin: 10px 0; background: #f9fafb; display: flex; flex-direction: column; gap: 6px; }
+    .msg-bubble { max-width: 75%; padding: 8px 12px; border-radius: 12px; font-size: 14px; word-wrap: break-word; }
+    .msg-me { background: #1877f2; color: white; align-self: flex-end; }
+    .msg-them { background: #e4e6eb; color: #111; align-self: flex-start; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="lang-bar">
+      <select id="langSelect" onchange="changeLang()">
+        <option value="en">🌐 English</option>
+        <option value="hi">🌐 हिंदी (Hindi)</option>
+        <option value="bn">🌐 বাংলা (Bengali)</option>
+        <option value="ur">🌐 اردو (Urdu)</option>
+        <option value="ar">🌐 العربية (Arabic)</option>
+      </select>
+    </div>
+
+    <div class="header">
+      <h2 id="uiTitle">Local Chat Board</h2>
+      <div id="locStatus">Checking location...</div>
+    </div>
+
+    <!-- 1. HOME VIEW -->
+    <div id="homeView">
+      <div class="filter-bar">
+        <button class="filter-btn active" id="btnAll" onclick="setFilter('all')">All</button>
+        <button class="filter-btn" id="btnToday" onclick="setFilter('today')">Today</button>
+        <button class="filter-btn" id="btnYesterday" onclick="setFilter('yesterday')">Yesterday</button>
+        <button class="filter-btn" id="btnBeforeYesterday" onclick="setFilter('beforeYesterday')">Before Yesterday</button>
+        <input type="date" id="datePicker" class="date-input" onchange="setFilter('custom')">
+      </div>
+      <div id="feed">Loading posts...</div>
+    </div>
+
+    <!-- 2. PUBLIC PROFILE VIEW -->
+    <div id="publicProfileView" style="display:none;">
+      <button type="button" style="width:auto;margin:0 0 10px 0;padding:6px 12px;background:#e4e6eb;color:#111;font-size:13px;" onclick="closePublicProfile()">⬅️ Back to Home</button>
+      <div class="profile-card">
+        <div class="cover-box" style="height:120px;">
+          <img id="pubCoverImg" src="" style="display:none;">
+        </div>
+        <div class="avatar-wrap">
+          <img id="pubAvatarImg" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='85'>👤</text></svg>">
+        </div>
+        <div class="profile-info">
+          <h2 id="pubName">User</h2>
+          <div class="profile-role" id="pubRole">Local Member</div>
+          <div id="pubActionArea" style="margin:8px 0;"></div>
+          <div class="glance-box" id="pubGlanceBox"></div>
+        </div>
+      </div>
+      <div class="date-divider"><span>📝 Posts by this member</span></div>
+      <div id="pubPostsFeed"></div>
+    </div>
+
+    <!-- 3. FRIENDS & CHAT VIEW -->
+    <div id="friendsView" style="display:none;">
+      <div id="friendsListSection">
+        <div class="date-divider"><span>📩 Friend Requests</span></div>
+        <div id="incomingRequests">No pending requests.</div>
+        <div class="date-divider"><span>🤝 My Friends (Tap to Chat)</span></div>
+        <div id="myFriendsList">No friends yet. Add someone from Home feed!</div>
+      </div>
+      <div id="privateChatSection" class="chat-box" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eee;padding-bottom:8px;">
+          <strong id="chatPartnerName">Chat</strong>
+          <button type="button" style="width:auto;margin:0;padding:5px 10px;background:#e4e6eb;color:#111;font-size:12px;" onclick="closeChat()">⬅️ Back</button>
+        </div>
+        <div id="chatMessages" class="chat-messages"></div>
+        <div class="comment-form">
+          <input type="text" id="chatInput" placeholder="Type a private message...">
+          <button type="button" onclick="sendPrivateMsg()">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. MY PROFILE VIEW -->
+    <div id="profileView" style="display:none;">
+      <div class="profile-card">
+        <div class="cover-box">
+          <img id="coverImg" src="" style="display:none;">
+          <input type="file" id="coverInput" accept="image/*" style="display:none;" onchange="uploadProfilePic('cover')">
+          <button type="button" class="cam-btn" onclick="document.getElementById('coverInput').click()">📷</button>
+        </div>
+        <div class="avatar-wrap">
+          <img id="avatarImg" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='85'>👤</text></svg>">
+          <input type="file" id="avatarInput" accept="image/*" style="display:none;" onchange="uploadProfilePic('avatar')">
+          <button type="button" class="avatar-cam" onclick="document.getElementById('avatarInput').click()">📷</button>
+        </div>
+        <div class="profile-info">
+          <h2 id="profDisplayName">Your Name</h2>
+          <div class="profile-role" id="profDisplayRole">Personal / Local Member</div>
+          <button type="button" style="background:#e7f3ff;color:#1877f2;padding:7px;font-size:13px;" onclick="toggleEditProfile()">✏️ Edit Profile Details</button>
+          <div class="glance-box" id="glanceBox"></div>
+          <div class="edit-form" id="editProfileForm">
+            <input type="text" id="pName" placeholder="Full Name">
+            <input type="text" id="pRole" placeholder="Profession / Shop (e.g. Chef, Grocery Shop)">
+            <input type="text" id="pLives" placeholder="📍 Lives in (City, State)">
+            <input type="text" id="pFrom" placeholder="🏠 From (Hometown)">
+            <input type="text" id="pBorn" placeholder="🎂 Born (e.g. January 1, 1998)">
+            <input type="text" id="pWork" placeholder="💼 Works at">
+            <button type="button" onclick="saveProfile()">💾 Save Profile</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Create Post Box inside Profile -->
+      <div class="box">
+        <input type="text" id="userName" placeholder="Enter your name or shop name">
+        <select id="userType">
+          <option value="Personal" id="optPersonal">👤 Personal</option>
+          <option value="Business" id="optBusiness">🏪 Local Shop / Business</option>
+        </select>
+        <textarea id="postText" rows="3" placeholder="Write something for people within 3 KM..."></textarea>
+        <div class="media-bar">
+          <input type="file" id="photoInput" accept="image/*" style="display:none;" onchange="previewPhoto()">
+          <button type="button" class="media-btn" id="btnPhoto" onclick="document.getElementById('photoInput').click()">📷 Photo</button>
+          <button type="button" class="media-btn" id="btnVoice" onclick="toggleRecord()">🎤 Voice</button>
+        </div>
+        <div id="mediaStatus" class="media-status"></div>
+        <button id="uiPostBtn" onclick="sendPost()">Post</button>
+      </div>
+
+      <div class="date-divider"><span>📝 My Posts</span></div>
+      <div id="myPostsFeed"></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM NAVIGATION -->
+  <div class="bottom-nav">
+    <button type="button" class="nav-btn active" id="navHome" onclick="switchTab('home')">🏠 Home</button>
+    <button type="button" class="nav-btn" id="navFriends" onclick="switchTab('friends')">💬 Friends <span id="reqBadge" style="background:#d93025;color:white;border-radius:10px;padding:1px 6px;font-size:11px;display:none;">0</span></button>
+    <button type="button" class="nav-btn" id="navProfile" onclick="switchTab('profile')">👤 Profile</button>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc, setDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDuBvnE7rfToXVqXa71hcTCaN9xVehcviY",
+      authDomain: "local-board-68bb1.firebaseapp.com",
+      projectId: "local-board-68bb1",
+      storageBucket: "local-board-68bb1.firebasestorage.app",
+      messagingSenderId: "889484656345",
+      appId: "1:889484656345:web:a3ef119c7361820b6108c8"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const CLOUD_NAME = "kn3t4erz";
+    const UPLOAD_PRESET = "wgsd78sk";
+
+    const translations = {
+      en: {
+        title: "Local Chat Board",
+        locOn: "✅ Location is ON (Only 3 KM posts shown)",
+        locOff: "❌ Please allow Location (GPS) in browser!",
+        namePh: "Enter your name or shop name",
+        personal: "👤 Personal",
+        business: "🏪 Local Shop / Business",
+        postPh: "Write something for people within 3 KM...",
+        postBtn: "Post",
+        noPosts: "No posts found for this day within 3 KM.",
+        away: "km away",
+        all: "All", today: "Today", yesterday: "Yesterday", beforeYesterday: "Before Yesterday",
+        badWord: "⚠️ Abusive or bad language is not allowed!",
+        commentBtn: "Comment", commentPh: "Write a comment...", sendBtn: "Send",
+        photoBtn: "📷 Photo", voiceBtn: "🎤 Voice", stopBtn: "⏹️ Stop",
+        uploading: "⏳ Uploading media...", photoReady: "✅ Photo selected", voiceReady: "✅ Voice recorded"
+      },
+      hi: {
+        title: "लोकल चैट बोर्ड",
+        locOn: "✅ लोकेशन चालू है (सिर्फ 3 KM के पोस्ट दिखेंगे)",
+        locOff: "❌ कृपया ब्राउज़र में Location (GPS) Allow करें!",
+        namePh: "अपना नाम या दुकान का नाम लिखें",
+        personal: "👤 पर्सनल (Personal)",
+        business: "🏪 लोकल दुकान / बिजनेस",
+        postPh: "अपने 3 KM के लोगों के लिए कुछ लिखें...",
+        postBtn: "पोस्ट करें",
+        noPosts: "इस दिन का कोई पोस्ट आपके 3 KM में नहीं मिला।",
+        away: "कि.मी. दूर",
+        all: "सभी (All)", today: "आज (Today)", yesterday: "कल (Yesterday)", beforeYesterday: "परसों (Before Yesterday)",
+        badWord: "⚠️ गलत या अभद्र भाषा का उपयोग मना है!",
+        commentBtn: "कमेंट", commentPh: "कमेंट लिखें...", sendBtn: "भेजें",
+        photoBtn: "📷 फोटो", voiceBtn: "🎤 आवाज़", stopBtn: "⏹️ रोकें",
+        uploading: "⏳ अपलोड हो रहा है...", photoReady: "✅ फोटो चुनी गई", voiceReady: "✅ आवाज़ रिकॉर्ड हो गई"
+      },
+      bn: {
+        title: "লোকাল চ্যাট বোর্ড",
+        locOn: "✅ লোকেশন চালু আছে (শুধু ৩ কিমি পোস্ট দেখাবে)",
+        locOff: "❌ অনুগ্রহ করে ব্রাউজারে Location (GPS) Allow করুন!",
+        namePh: "আপনার নাম বা দোকানের নাম লিখুন",
+        personal: "👤 ব্যক্তিগত (Personal)",
+        business: "🏪 দোকান / ব্যবসা (Business)",
+        postPh: "আপনার ৩ কিমি এলাকার মানুষের জন্য কিছু লিখুন...",
+        postBtn: "পোস্ট করুন",
+        noPosts: "এই দিনে ৩ কিমির মধ্যে কোনো পোস্ট নেই।",
+        away: "কিমি দূরে",
+        all: "সব", today: "আজ", yesterday: "গতকাল", beforeYesterday: "পরশু",
+        badWord: "⚠️ খারাপ বা অশ্লীল ভাষা ব্যবহার নিষেধ!",
+        commentBtn: "কমেন্ট", commentPh: "কমেন্ট লিখুন...", sendBtn: "পাঠান",
+        photoBtn: "📷 ছবি", voiceBtn: "🎤 ভয়েস", stopBtn: "⏹️ থামুন",
+        uploading: "⏳ আপলোড হচ্ছে...", photoReady: "✅ ছবি নির্বাচিত", voiceReady: "✅ ভয়েস রেকর্ড হয়েছে"
+      },
+      ur: {
+        title: "لوکل چیٹ بورڈ",
+        locOn: "✅ لوکیشن آن ہے (صرف 3 کلومیٹر کی پوسٹس دکھیں گی)",
+        locOff: "❌ براہ کرم براؤزر میں لوکیشن (GPS) آن کریں!",
+        namePh: "اپنا یا دکان کا نام لکھیں",
+        personal: "👤 ذاتی (Personal)",
+        business: "🏪 مقامی دکان / کاروبار",
+        postPh: "اپنے 3 کلومیٹر کے لوگوں کے لیے کچھ لکھیں...",
+        postBtn: "پوسٹ کریں",
+        noPosts: "اس دن 3 کلومیٹر میں کوئی پوسٹ نہیں ملی۔",
+        away: "کلومیٹر دور",
+        all: "سب", today: "آج", yesterday: "کل", beforeYesterday: "پرسوں",
+        badWord: "⚠️ گالی گلوچ یا غلط زبان کا استعمال منع ہے!",
+        commentBtn: "تبصرہ", commentPh: "تبصرہ لکھیں...", sendBtn: "بھیجیں",
+        photoBtn: "📷 تصویر", voiceBtn: "🎤 آواز", stopBtn: "⏹️ روکیں",
+        uploading: "⏳ اپ لوڈ ہو رہا ہے...", photoReady: "✅ تصویر منتخب ہوگئی", voiceReady: "✅ آواز ریکارڈ ہوگئی"
+      },
+      ar: {
+        title: "لوحة الدردشة المحلية",
+        locOn: "✅ الموقع مفعل (تظهر منشورات 3 كم فقط)",
+        locOff: "❌ يرجى السماح بالموقع (GPS) في المتصفح!",
+        namePh: "أدخل اسمك أو اسم المتجر",
+        personal: "👤 شخصي (Personal)",
+        business: "🏪 متجر محلي / أعمال",
+        postPh: "اكتب شيئاً للأشخاص ضمن نطاق 3 كم...",
+        postBtn: "نشر",
+        noPosts: "لا توجد منشورات لهذا اليوم ضمن 3 كم.",
+        away: "كم",
+        all: "الكل", today: "اليوم", yesterday: "أمس", beforeYesterday: "أول أمس",
+        badWord: "⚠️ يمنع استخدام الألفاظ البذيئة!",
+        commentBtn: "تعليق", commentPh: "اكتب تعليقاً...", sendBtn: "إرسال",
+        photoBtn: "📷 صورة", voiceBtn: "🎤 صوت", stopBtn: "⏹️ إيقاف",
+        uploading: "⏳ جاري الرفع...", photoReady: "✅ تم اختيار الصورة", voiceReady: "✅ تم تسجيل الصوت"
+      }
+    };
+
+    let currentLang = localStorage.getItem("appLang") || "en";
+    document.getElementById("langSelect").value = currentLang;
+
+    let deviceId = localStorage.getItem("localDeviceId");
+    if (!deviceId) {
+      deviceId = "dev_" + Math.random().toString(36).substr(2, 9) + "_" + Date.now();
+      localStorage.setItem("localDeviceId", deviceId);
+    }
+
+    let userProfile = JSON.parse(localStorage.getItem("localUserProfile") || "{}");
+    let myLat = null, myLng = null;
+    let currentFilter = "all";
+    let allPosts = [];
+    let allFriendDocs = [];
+    let allUsersMap = {};
+    let openComments = {};
+    let isRecording = false, mediaRecorder = null, audioChunks = [], recordedBlob = null;
+    let activeChatRoom = null, unsubChat = null;
+    const badWords = ["gali1", "gali2", "abuse", "fuck", "bc", "mc"];
+
+    window.changeLang = () => {
+      currentLang = document.getElementById("langSelect").value;
+      localStorage.setItem("appLang", currentLang);
+      applyLang();
+      renderPosts();
+    };
+
+    function applyLang() {
+      const t = translations[currentLang];
+      document.body.dir = (currentLang === "ur" || currentLang === "ar") ? "rtl" : "ltr";
+      document.getElementById("uiTitle").innerText = t.title;
+      document.getElementById("userName").placeholder = t.namePh;
+      document.getElementById("optPersonal").innerText = t.personal;
+      document.getElementById("optBusiness").innerText = t.business;
+      document.getElementById("postText").placeholder = t.postPh;
+      document.getElementById("uiPostBtn").innerText = t.postBtn;
+      document.getElementById("btnPhoto").innerText = t.photoBtn;
+      if (!isRecording) document.getElementById("btnVoice").innerText = t.voiceBtn;
+      document.getElementById("btnAll").innerText = t.all;
+      document.getElementById("btnToday").innerText = t.today;
+      document.getElementById("btnYesterday").innerText = t.yesterday;
+      document.getElementById("btnBeforeYesterday").innerText = t.beforeYesterday;
+      if (myLat) document.getElementById("locStatus").innerText = t.locOn;
+    }
+
+    function loadProfileUI() {
+      if (userProfile.name) {
+        document.getElementById("profDisplayName").innerText = userProfile.name;
+        document.getElementById("userName").value = userProfile.name;
+        document.getElementById("pName").value = userProfile.name;
+      }
+      if (userProfile.role) {
+        document.getElementById("profDisplayRole").innerText = userProfile.role;
+        document.getElementById("pRole").value = userProfile.role;
+      }
+      if (userProfile.coverUrl) {
+        const cImg = document.getElementById("coverImg");
+        cImg.src = userProfile.coverUrl;
+        cImg.style.display = "block";
+      }
+      if (userProfile.avatarUrl) {
+        document.getElementById("avatarImg").src = userProfile.avatarUrl;
+      }
+      document.getElementById("pLives").value = userProfile.lives || "";
+      document.getElementById("pFrom").value = userProfile.from || "";
+      document.getElementById("pBorn").value = userProfile.born || "";
+      document.getElementById("pWork").value = userProfile.work || "";
+
+      let gHtml = "<strong>At a glance</strong><br>";
+      if (userProfile.lives) gHtml += `📍 Lives in <b>${userProfile.lives}</b><br>`;
+      if (userProfile.from) gHtml += `🏠 From <b>${userProfile.from}</b><br>`;
+      if (userProfile.born) gHtml += `🎂 Born <b>${userProfile.born}</b><br>`;
+      if (userProfile.work) gHtml += `💼 Works at <b>${userProfile.work}</b><br>`;
+      if (!userProfile.lives && !userProfile.from && !userProfile.born && !userProfile.work) {
+        gHtml += "<span style='color:#888;'>Tap 'Edit Profile Details' to add your bio, city, and work info.</span>";
+      }
+      document.getElementById("glanceBox").innerHTML = gHtml;
+    }
+
+    window.switchTab = (tab) => {
+      document.getElementById("publicProfileView").style.display = "none";
+      document.getElementById("homeView").style.display = (tab === "home") ? "block" : "none";
+      document.getElementById("friendsView").style.display = (tab === "friends") ? "block" : "none";
+      document.getElementById("profileView").style.display = (tab === "profile") ? "block" : "none";
+      document.getElementById("navHome").classList.toggle("active", tab === "home");
+      document.getElementById("navFriends").classList.toggle("active", tab === "friends");
+      document.getElementById("navProfile").classList.toggle("active", tab === "profile");
+      if (tab === "profile") renderMyPosts();
+      if (tab === "friends") { closeChat(); renderFriendsUI(); }
+    };
+
+    window.toggleEditProfile = () => {
+      const f = document.getElementById("editProfileForm");
+      f.style.display = (f.style.display === "block") ? "none" : "block";
+    };
+
+    window.saveProfile = async () => {
+      userProfile.name = document.getElementById("pName").value.trim();
+      userProfile.role = document.getElementById("pRole").value.trim();
+      userProfile.lives = document.getElementById("pLives").value.trim();
+      userProfile.from = document.getElementById("pFrom").value.trim();
+      userProfile.born = document.getElementById("pBorn").value.trim();
+      userProfile.work = document.getElementById("pWork").value.trim();
+      localStorage.setItem("localUserProfile", JSON.stringify(userProfile));
+      loadProfileUI();
+      document.getElementById("editProfileForm").style.display = "none";
+      await setDoc(doc(db, "users", deviceId), { ...userProfile, deviceId, updatedAt: Date.now() }, { merge: true });
+    };
+
+    async function uploadToCloudinary(fileOrBlob, resourceType) {
+      const fd = new FormData();
+      fd.append("file", fileOrBlob);
+      fd.append("upload_preset", UPLOAD_PRESET);
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`, { method: "POST", body: fd });
+      const data = await res.json();
+      return data.secure_url || "";
+    }
+
+    window.uploadProfilePic = async (kind) => {
+      const input = document.getElementById(kind === "cover" ? "coverInput" : "avatarInput");
+      const file = input.files[0];
+      if (!file) return;
+      const url = await uploadToCloudinary(file, "image");
+      if (url) {
+        if (kind === "cover") userProfile.coverUrl = url;
+        else userProfile.avatarUrl = url;
+        localStorage.setItem("localUserProfile", JSON.stringify(userProfile));
+        loadProfileUI();
+        await setDoc(doc(db, "users", deviceId), { ...userProfile, deviceId, updatedAt: Date.now() }, { merge: true });
+      }
+    };
+
+    window.previewPhoto = () => {
+      const file = document.getElementById("photoInput").files[0];
+      if (file) document.getElementById("mediaStatus").innerText = translations[currentLang].photoReady + ": " + file.name;
+    };
+
+    window.toggleRecord = async () => {
+      const btn = document.getElementById("btnVoice");
+      const t = translations[currentLang];
+      if (!isRecording) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          audioChunks = [];
+          mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+          mediaRecorder.onstop = () => {
+            recordedBlob = new Blob(audioChunks, { type: "audio/webm" });
+            document.getElementById("mediaStatus").innerText = t.voiceReady;
+            stream.getTracks().forEach(track => track.stop());
+          };
+          mediaRecorder.start();
+          isRecording = true;
+          btn.innerText = t.stopBtn;
+          btn.classList.add("recording");
+        } catch (err) {
+          alert("Please allow Microphone permission in browser!");
+        }
+      } else {
+        mediaRecorder.stop();
+        isRecording = false;
+        btn.innerText = t.voiceBtn;
+        btn.classList.remove("recording");
+      }
+    };
+
+    window.sendPost = async () => {
+      const t = translations[currentLang];
+      const name = document.getElementById("userName").value.trim() || userProfile.name || "Anonymous";
+      const type = document.getElementById("userType").value;
+      const text = document.getElementById("postText").value.trim();
+      const photoFile = document.getElementById("photoInput").files[0];
+
+      if (!myLat) return alert(t.locOff);
+      if (!text && !photoFile && !recordedBlob) return;
+      if (text && badWords.some(w => text.toLowerCase().includes(w))) return alert(t.badWord);
+
+      const postBtn = document.getElementById("uiPostBtn");
+      postBtn.disabled = true;
+      document.getElementById("mediaStatus").innerText = t.uploading;
+
+      let imageUrl = "", audioUrl = "";
+      if (photoFile) imageUrl = await uploadToCloudinary(photoFile, "image");
+      if (recordedBlob) audioUrl = await uploadToCloudinary(recordedBlob, "video");
+
+      await addDoc(collection(db, "posts"), {
+        name, type, text, imageUrl, audioUrl, lat: myLat, lng: myLng,
+        deviceId, avatarUrl: userProfile.avatarUrl || "",
+        likes: 0, dislikes: 0, likedBy: [], dislikedBy: [], comments: [], createdAt: Date.now()
+      });
+
+      document.getElementById("postText").value = "";
+      document.getElementById("photoInput").value = "";
+      recordedBlob = null;
+      document.getElementById("mediaStatus").innerText = "";
+      postBtn.disabled = false;
+      alert("Posted! Check Home feed.");
+    };
+
+    window.deleteMyPost = async (postId) => {
+      if (!confirm("Delete this post permanently?")) return;
+      await deleteDoc(doc(db, "posts", postId));
+    };
+
+    window.reactPost = async (id, field) => {
+      const post = allPosts.find(item => item.id === id);
+      if (!post) return;
+      const likedBy = post.likedBy || [];
+      const dislikedBy = post.dislikedBy || [];
+      let newLikes = post.likes || 0;
+      let newDislikes = post.dislikes || 0;
+      let nextLikedBy = [...likedBy];
+      let nextDislikedBy = [...dislikedBy];
+
+      if (field === "likes") {
+        if (nextLikedBy.includes(deviceId)) {
+          nextLikedBy = nextLikedBy.filter(u => u !== deviceId);
+          newLikes = Math.max(0, newLikes - 1);
+        } else {
+          nextLikedBy.push(deviceId);
+          newLikes += 1;
+          if (nextDislikedBy.includes(deviceId)) {
+            nextDislikedBy = nextDislikedBy.filter(u => u !== deviceId);
+            newDislikes = Math.max(0, newDislikes - 1);
+          }
+        }
+      } else {
+        if (nextDislikedBy.includes(deviceId)) {
+          nextDislikedBy = nextDislikedBy.filter(u => u !== deviceId);
+          newDislikes = Math.max(0, newDislikes - 1);
+        } else {
+          nextDislikedBy.push(deviceId);
+          newDislikes += 1;
+          if (nextLikedBy.includes(deviceId)) {
+            nextLikedBy = nextLikedBy.filter(u => u !== deviceId);
+            newLikes = Math.max(0, newLikes - 1);
+          }
+        }
+      }
+
+      await updateDoc(doc(db, "posts", id), {
+        likes: newLikes, dislikes: newDislikes, likedBy: nextLikedBy, dislikedBy: nextDislikedBy
+      });
+    };
+
+    window.toggleComments = (id) => {
+      openComments[id] = !openComments[id];
+      const box = document.getElementById(`cbox-${id}`);
+      if (box) box.style.display = openComments[id] ? "block" : "none";
+    };
+
+    window.sendComment = async (id) => {
+      const input = document.getElementById(`cinput-${id}`);
+      const text = input.value.trim();
+      if (!text) return;
+      if (badWords.some(w => text.toLowerCase().includes(w))) return alert(translations[currentLang].badWord);
+      const name = userProfile.name || document.getElementById("userName").value.trim() || "Anonymous";
+      openComments[id] = true;
+      await updateDoc(doc(db, "posts", id), { comments: arrayUnion({ name, text, createdAt: Date.now() }) });
+    };
+
+    function getFriendBtnHTML(targetId, targetName) {
+      if (!targetId || targetId === deviceId) return "";
+      const safeName = (targetName || "Member").replace(/'/g, "");
+      const rel = allFriendDocs.find(f =>
+        (f.fromId === deviceId && f.toId === targetId) ||
+        (f.fromId === targetId && f.toId === deviceId)
+      );
+      if (!rel) return `<button type="button" class="add-friend-btn" onclick="sendFriendReq('${targetId}', '${safeName}')">➕ Add</button>`;
+      if (rel.status === "pending") {
+        return rel.fromId === deviceId
+          ? `<span style="font-size:11px;color:#888;margin-left:6px;">⏳ Sent</span>`
+          : `<button type="button" class="add-friend-btn" style="background:#d4edda;color:#155724;" onclick="acceptFriend('${rel.id}')">✅ Accept</button>`;
+      }
+      return `<button type="button" class="add-friend-btn" style="background:#e7f3ff;color:#1877f2;" onclick="openChatWith('${targetId}', '${safeName}')">💬 Chat</button>`;
+    }
+
+    window.sendFriendReq = async (toId, toName) => {
+      const myName = userProfile.name || document.getElementById("userName").value.trim() || "Member";
+      const relId = [deviceId, toId].sort().join("_");
+      await setDoc(doc(db, "friends", relId), {
+        fromId: deviceId, fromName: myName, toId, toName, status: "pending", updatedAt: Date.now()
+      });
+      alert("Friend request sent to " + toName + "!");
+    };
+
+    window.acceptFriend = async (relId) => {
+      await updateDoc(doc(db, "friends", relId), { status: "accepted", updatedAt: Date.now() });
+    };
+
+    window.rejectFriend = async (relId) => {
+      await updateDoc(doc(db, "friends", relId), { status: "rejected", updatedAt: Date.now() });
+    };
+
+    function renderFriendsUI() {
+      const incoming = allFriendDocs.filter(f => f.toId === deviceId && f.status === "pending");
+      const accepted = allFriendDocs.filter(f => (f.fromId === deviceId || f.toId === deviceId) && f.status === "accepted");
+
+      const badge = document.getElementById("reqBadge");
+      if (incoming.length > 0) {
+        badge.innerText = incoming.length;
+        badge.style.display = "inline-block";
+      } else {
+        badge.style.display = "none";
+      }
+
+      document.getElementById("incomingRequests").innerHTML = incoming.length === 0
+        ? "<div class='box' style='font-size:13px;color:#666;'>No pending friend requests.</div>"
+        : incoming.map(r => `
+          <div class="friend-card">
+            <div><strong>${r.fromName}</strong><br><span style="font-size:11px;color:#666;">Sent you a friend request</span></div>
+            <div>
+              <button style="background:#1877f2;" onclick="acceptFriend('${r.id}')">Accept</button>
+              <button style="background:#e4e6eb;color:#111;" onclick="rejectFriend('${r.id}')">Reject</button>
+            </div>
+          </div>`).join("");
+
+      document.getElementById("myFriendsList").innerHTML = accepted.length === 0
+        ? "<div class='box' style='font-size:13px;color:#666;'>No friends yet. Tap '➕ Add' on any post in Home feed!</div>"
+        : accepted.map(f => {
+          const otherId = f.fromId === deviceId ? f.toId : f.fromId;
+          const otherName = (f.fromId === deviceId ? f.toName : f.fromName).replace(/'/g, "");
+          return `<div class="friend-card">
+            <strong>👤 ${otherName}</strong>
+            <button style="background:#1877f2;" onclick="openChatWith('${otherId}', '${otherName}')">💬 Message</button>
+          </div>`;
+        }).join("");
+    }
+
+    window.openChatWith = (otherId, otherName) => {
+      switchTab("friends");
+      document.getElementById("friendsListSection").style.display = "none";
+      document.getElementById("privateChatSection").style.display = "block";
+      document.getElementById("chatPartnerName").innerText = "💬 " + otherName;
+      activeChatRoom = [deviceId, otherId].sort().join("_");
+
+      if (unsubChat) unsubChat();
+      const q = query(collection(db, "chats", activeChatRoom, "messages"), orderBy("createdAt", "asc"));
+      unsubChat = onSnapshot(q, (snap) => {
+        const box = document.getElementById("chatMessages");
+        box.innerHTML = "";
+        snap.forEach(d => {
+          const m = d.data();
+          const cls = m.senderId === deviceId ? "msg-bubble msg-me" : "msg-bubble msg-them";
+          box.innerHTML += `<div class="${cls}">${m.text}</div>`;
+        });
+        box.scrollTop = box.scrollHeight;
+      });
+    };
+
+    window.closeChat = () => {
+      if (unsubChat) { unsubChat(); unsubChat = null; }
+      activeChatRoom = null;
+      document.getElementById("privateChatSection").style.display = "none";
+      document.getElementById("friendsListSection").style.display = "block";
+    };
+
+    window.sendPrivateMsg = async () => {
+      const inp = document.getElementById("chatInput");
+      const text = inp.value.trim();
+      if (!text || !activeChatRoom) return;
+      if (badWords.some(w => text.toLowerCase().includes(w))) return alert(translations[currentLang].badWord);
+      inp.value = "";
+      await addDoc(collection(db, "chats", activeChatRoom, "messages"), {
+        senderId: deviceId, text, createdAt: Date.now()
+      });
+    };
+
+    window.openPublicProfile = (targetId, fallbackName) => {
+      if (targetId === deviceId) return switchTab("profile");
+      document.getElementById("homeView").style.display = "none";
+      document.getElementById("friendsView").style.display = "none";
+      document.getElementById("profileView").style.display = "none";
+      document.getElementById("publicProfileView").style.display = "block";
+
+      const u = allUsersMap[targetId] || {};
+      const displayName = u.name || fallbackName || "Local Member";
+      document.getElementById("pubName").innerText = displayName;
+      document.getElementById("pubRole").innerText = u.role || "Local Member";
+
+      const cImg = document.getElementById("pubCoverImg");
+      if (u.coverUrl) { cImg.src = u.coverUrl; cImg.style.display = "block"; }
+      else { cImg.style.display = "none"; }
+
+      document.getElementById("pubAvatarImg").src = u.avatarUrl || "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='85'>👤</text></svg>";
+      document.getElementById("pubActionArea").innerHTML = targetId ? getFriendBtnHTML(targetId, displayName) : "";
+
+      let gHtml = "<strong>At a glance</strong><br>";
+      if (u.lives) gHtml += `📍 Lives in <b>${u.lives}</b><br>`;
+      if (u.from) gHtml += `🏠 From <b>${u.from}</b><br>`;
+      if (u.born) gHtml += `🎂 Born <b>${u.born}</b><br>`;
+      if (u.work) gHtml += `💼 Works at <b>${u.work}</b><br>`;
+      if (!u.lives && !u.from && !u.born && !u.work) gHtml += "<span style='color:#888;'>No additional details shared yet.</span>";
+      document.getElementById("pubGlanceBox").innerHTML = gHtml;
+
+      const userPosts = allPosts.filter(p => (targetId && p.deviceId === targetId) || p.name.toLowerCase() === displayName.toLowerCase());
+      document.getElementById("pubPostsFeed").innerHTML = userPosts.length === 0
+        ? "<div class='box'>No posts yet.</div>"
+        : userPosts.map(p => `<div class="post"><div class="post-time">🕒 ${new Date(p.createdAt).toLocaleString()}</div><div>${p.text || ""}</div>${p.imageUrl ? `<img src="${p.imageUrl}" class="post-img">` : ""}${p.audioUrl ? `<audio controls src="${p.audioUrl}" class="post-audio"></audio>` : ""}</div>`).join("");
+    };
+
+    window.closePublicProfile = () => {
+      document.getElementById("publicProfileView").style.display = "none";
+      switchTab("home");
+    };
+
+    window.setFilter = (type) => {
+      currentFilter = type;
+      document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+      if (type === "all") document.getElementById("btnAll").classList.add("active");
+      if (type === "today") document.getElementById("btnToday").classList.add("active");
+      if (type === "yesterday") document.getElementById("btnYesterday").classList.add("active");
+      if (type === "beforeYesterday") document.getElementById("btnBeforeYesterday").classList.add("active");
+      if (type !== "custom") document.getElementById("datePicker").value = "";
+      renderPosts();
+    };
+
+    function getDayDiff(timestamp) {
+      const todayStart = new Date().setHours(0, 0, 0, 0);const postStart = new Date(timestamp).setHours(0, 0, 0, 0);
+      return Math.round((todayStart - postStart) / 86400000);
+    }
+
+    function getDayLabel(timestamp) {
+      const t = translations[currentLang];
+      const diff = getDayDiff(timestamp);
+      if (diff === 0) return t.today;
+      if (diff === 1) return t.yesterday;
+      if (diff === 2) return t.beforeYesterday;
+      return new Date(timestamp).toLocaleDateString();
+    }
+
+    function formatDateYYYYMMDD(timestamp) {
+      const d = new Date(timestamp);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    function getDistanceKM(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function renderMyPosts() {
+      const box = document.getElementById("myPostsFeed");
+      if (!box) return;
+      const myPosts = allPosts.filter(p => p.deviceId === deviceId || (userProfile.name && p.name.toLowerCase() === userProfile.name.toLowerCase()));
+      if (myPosts.length === 0) {
+        box.innerHTML = "<div class='box'>You haven't posted anything yet.</div>";
+        return;
+      }
+      box.innerHTML = myPosts.map(p => {
+        const timeStr = new Date(p.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+        return `<div class="post">
+          <div class="post-header"><strong>${p.name} <span class="badge">${p.type}</span></strong><div><span style="margin-right:8px;">🕒 ${timeStr}</span><button type="button" class="del-btn" onclick="deleteMyPost('${p.id}')">🗑️ Delete</button></div></div>
+          <div>${p.text || ""}</div>
+          ${p.imageUrl ? `<img src="${p.imageUrl}" class="post-img" loading="lazy">` : ""}
+          ${p.audioUrl ? `<audio controls src="${p.audioUrl}" class="post-audio"></audio>` : ""}
+          <div style="font-size:12px;color:#65676b;margin-top:8px;">👍 ${p.likes || 0} &nbsp; 👎 ${p.dislikes || 0} &nbsp; 💬 ${(p.comments || []).length}</div>
+        </div>`;
+      }).join("");
+    }
+
+    function renderPosts() {
+      if (!myLat) return;
+      const feed = document.getElementById("feed");
+      const t = translations[currentLang];
+      const customDate = document.getElementById("datePicker").value;
+      feed.innerHTML = "";
+      let count = 0, lastDayLabel = "";
+
+      allPosts.forEach((p) => {
+        const dist = getDistanceKM(myLat, myLng, p.lat, p.lng);
+        if (dist > 3) return;
+
+        const diff = getDayDiff(p.createdAt);
+        if (currentFilter === "today" && diff !== 0) return;
+        if (currentFilter === "yesterday" && diff !== 1) return;
+        if (currentFilter === "beforeYesterday" && diff !== 2) return;
+        if (currentFilter === "custom" && customDate && formatDateYYYYMMDD(p.createdAt) !== customDate) return;
+
+        count++;
+        const dayLabel = getDayLabel(p.createdAt);
+        if (dayLabel !== lastDayLabel) {
+          feed.innerHTML += `<div class="date-divider"><span>📅 ${dayLabel}</span></div>`;
+          lastDayLabel = dayLabel;
+        }
+
+        const comments = p.comments || [];
+        const commentsHTML = comments.map(c => `<div class="comment-item"><div class="comment-meta"><strong>${c.name}</strong><span>${new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div><div>${c.text}</div></div>`).join("");
+        const safeName = (p.name || "Member").replace(/'/g, "");
+        const timeStr = new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        feed.innerHTML += `
+          <div class="post">
+            <div class="post-header">
+              <strong><span class="user-link" onclick="openPublicProfile('${p.deviceId || ''}', '${safeName}')">${p.avatarUrl ? `<img src="${p.avatarUrl}" class="mini-avatar">` : ''}${p.name}</span> <span class="badge">${p.type}</span>${getFriendBtnHTML(p.deviceId, p.name)}</strong>
+              <span>${dist.toFixed(1)} ${t.away}</span>
+            </div>
+            <div class="post-time">🕒 ${timeStr}</div>
+            <div>${p.text || ""}</div>
+            ${p.imageUrl ? `<img src="${p.imageUrl}" class="post-img" loading="lazy">` : ""}
+            ${p.audioUrl ? `<audio controls src="${p.audioUrl}" class="post-audio"></audio>` : ""}
+            <div class="actions">
+              <button style="${(p.likedBy || []).includes(deviceId) ? 'background:#d0e6ff;color:#1877f2;font-weight:bold;' : ''}" onclick="reactPost('${p.id}', 'likes')">👍 ${p.likes || 0}</button>
+              <button style="${(p.dislikedBy || []).includes(deviceId) ? 'background:#ffd6d6;color:#d93025;font-weight:bold;' : ''}" onclick="reactPost('${p.id}', 'dislikes')">👎 ${p.dislikes || 0}</button>
+              <button onclick="toggleComments('${p.id}')">💬 ${t.commentBtn} (${comments.length})</button>
+            </div>
+            <div class="comments-section" id="cbox-${p.id}" style="display:${openComments[p.id] ? 'block' : 'none'};">
+              <div>${commentsHTML}</div>
+              <div class="comment-form">
+                <input type="text" id="cinput-${p.id}" placeholder="${t.commentPh}">
+                <button onclick="sendComment('${p.id}')">${t.sendBtn}</button>
+              </div>
+            </div>
+          </div>`;
+      });
+
+      if (count === 0) feed.innerHTML = `<div class='box'>${t.noPosts}</div>`;
+    }
+
+    // Initialize everything cleanly
+    applyLang();
+    loadProfileUI();
+
+    onSnapshot(collection(db, "users"), (snap) => {
+      allUsersMap = {};
+      snap.forEach(d => { allUsersMap[d.id] = d.data(); });
+    });
+
+    onSnapshot(collection(db, "friends"), (snap) => {
+      allFriendDocs = [];
+      snap.forEach(d => allFriendDocs.push({ id: d.id, ...d.data() }));
+      renderFriendsUI();
+      renderPosts();
+    });
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        myLat = pos.coords.latitude;
+        myLng = pos.coords.longitude;
+        document.getElementById("locStatus").innerText = translations[currentLang].locOn;
+        onSnapshot(query(collection(db, "posts"), orderBy("createdAt", "desc")), (snapshot) => {
+          allPosts = [];
+          snapshot.forEach(docSnap => allPosts.push({ id: docSnap.id, ...docSnap.data() }));
+          renderPosts();
+          renderMyPosts();
+        });
+      },
+      () => {
+        document.getElementById("locStatus").innerText = translations[currentLang].locOff;
+      }
+    );
+  </script>
+</body>
+</html>
