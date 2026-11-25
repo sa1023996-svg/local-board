@@ -193,6 +193,9 @@
 
     <!-- 4. MY PROFILE VIEW -->
     <div id="profileView" style="display:none;">
+      <div class="box" style="display:flex;justify-content:flex-end;padding:8px 12px;background:#f0f2f5;margin-bottom:10px;">
+        <button type="button" id="privacyBtn" style="width:auto;margin:0;padding:6px 12px;background:#28a745;font-size:12px;" onclick="togglePrivacyLock()">🌍 Profile: Public</button>
+      </div>
       <div class="profile-card">
         <div class="cover-box">
           <img id="coverImg" src="" style="display:none;">
@@ -1106,6 +1109,27 @@
     };
 
     setTimeout(() => { if (!myLat) locHelp.style.display = "block"; }, 2500);
+
+    // --- FACEBOOK-STYLE PRIVACY LOCK ---
+    window.togglePrivacyLock = async () => {
+      userProfile.isLocked = !userProfile.isLocked;
+      localStorage.setItem("localUserProfile", JSON.stringify(userProfile));
+      try { await setDoc(doc(db, "users", deviceId), { isLocked: userProfile.isLocked }, { merge: true }); } catch (e) {}
+      const pBtn = document.getElementById("privacyBtn");
+      if (pBtn) {
+        pBtn.innerText = userProfile.isLocked ? "🔒 Profile: Locked" : "🌍 Profile: Public";
+        pBtn.style.background = userProfile.isLocked ? "#dc3545" : "#28a745";
+      }
+      alert(userProfile.isLocked ? "🔒 Profile Locked!" : "🌍 Profile is now Public!");
+    };
+
+    const _origOpenPub = window.openPublicProfile;
+    window.openPublicProfile = (uid, uname) => {
+      if (uid && uid !== deviceId && allUsersMap[uid]?.isLocked) {
+        return alert("🔒 " + (uname || "This user") + " has locked their profile.");
+      }
+      _origOpenPub(uid, uname);
+    };
 
     // Initialize everything cleanly
     applyLang();
