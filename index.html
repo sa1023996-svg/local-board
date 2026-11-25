@@ -141,6 +141,32 @@
       </div>
     </div>
 
+    <!-- 3.5 SHOPS / LOCAL MARKET VIEW -->
+    <div id="shopsView" style="display:none;">
+      <div class="box" style="background:#fff8e6;border:1px solid #ffe082;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <strong style="color:#b26a00;font-size:15px;">🏪 Local Shops & Offers (3 KM)</strong>
+            <div style="font-size:12px;color:#666;">Nearby shops, groceries, services & deals</div>
+          </div>
+          <button type="button" style="width:auto;margin:0;padding:7px 12px;background:#ff9800;font-size:12px;" onclick="toggleShopForm()">➕ Post Offer</button>
+        </div>
+
+        <div id="shopPostForm" style="display:none;margin-top:12px;border-top:1px solid #ffe082;padding-top:10px;">
+          <input type="text" id="shopName" placeholder="🏪 Shop / Business Name (e.g. Ansari Kirana)">
+          <input type="text" id="shopCategory" placeholder="📦 Category (e.g. Grocery, Mobile, Medical, Food)">
+          <textarea id="shopText" rows="2" placeholder="Write offer, item price, or shop timing..."></textarea>
+          <div class="media-bar">
+            <input type="file" id="shopPhotoInput" accept="image/*" style="display:none;" onchange="previewShopPhoto()">
+            <button type="button" class="media-btn" onclick="document.getElementById('shopPhotoInput').click()">📷 Product Photo</button>
+          </div>
+          <div id="shopMediaStatus" class="media-status"></div>
+          <button type="button" style="background:#ff9800;" onclick="sendShopPost()">🚀 Publish to Local Market</button>
+        </div>
+      </div>
+      <div id="shopsFeed">Loading local shops...</div>
+    </div>
+
     <!-- 4. MY PROFILE VIEW -->
     <div id="profileView" style="display:none;">
       <div class="profile-card">
@@ -173,11 +199,8 @@
 
       <!-- Create Post Box inside Profile -->
       <div class="box">
-        <input type="text" id="userName" placeholder="Enter your name or shop name">
-        <select id="userType">
-          <option value="Personal" id="optPersonal">👤 Personal</option>
-          <option value="Business" id="optBusiness">🏪 Local Shop / Business</option>
-        </select>
+        <input type="text" id="userName" placeholder="Enter your name">
+<input type="hidden" id="userType" value="Personal">
         <textarea id="postText" rows="3" placeholder="Write something for people within 3 KM..."></textarea>
         <div class="media-bar">
           <input type="file" id="photoInput" accept="image/*" style="display:none;" onchange="previewPhoto()">
@@ -196,6 +219,7 @@
   <!-- BOTTOM NAVIGATION -->
   <div class="bottom-nav">
     <button type="button" class="nav-btn active" id="navHome" onclick="switchTab('home')">🏠 Home</button>
+    <button type="button" class="nav-btn" id="navShops" onclick="switchTab('shops')">🏪 Shops</button>
     <button type="button" class="nav-btn" id="navFriends" onclick="switchTab('friends')">💬 Friends <span id="reqBadge" style="background:#d93025;color:white;border-radius:10px;padding:1px 6px;font-size:11px;display:none;">0</span></button>
     <button type="button" class="nav-btn" id="navProfile" onclick="switchTab('profile')">👤 Profile</button>
   </div>
@@ -338,10 +362,7 @@
       const t = translations[currentLang];
       document.body.dir = (currentLang === "ur" || currentLang === "ar") ? "rtl" : "ltr";
       document.getElementById("uiTitle").innerText = t.title;
-      document.getElementById("userName").placeholder = t.namePh;
-      document.getElementById("optPersonal").innerText = t.personal;
-      document.getElementById("optBusiness").innerText = t.business;
-      document.getElementById("postText").placeholder = t.postPh;
+                        document.getElementById("postText").placeholder = t.postPh;
       document.getElementById("uiPostBtn").innerText = t.postBtn;
       document.getElementById("btnPhoto").innerText = t.photoBtn;
       if (!isRecording) document.getElementById("btnVoice").innerText = t.voiceBtn;
@@ -389,11 +410,14 @@
     window.switchTab = (tab) => {
       document.getElementById("publicProfileView").style.display = "none";
       document.getElementById("homeView").style.display = (tab === "home") ? "block" : "none";
+      document.getElementById("shopsView").style.display = (tab === "shops") ? "block" : "none";
       document.getElementById("friendsView").style.display = (tab === "friends") ? "block" : "none";
       document.getElementById("profileView").style.display = (tab === "profile") ? "block" : "none";
       document.getElementById("navHome").classList.toggle("active", tab === "home");
+      document.getElementById("navShops").classList.toggle("active", tab === "shops");
       document.getElementById("navFriends").classList.toggle("active", tab === "friends");
       document.getElementById("navProfile").classList.toggle("active", tab === "profile");
+      if (tab === "shops") renderShops();
       if (tab === "profile") renderMyPosts();
       if (tab === "friends") { closeChat(); renderFriendsUI(); }
     };
@@ -781,7 +805,7 @@
 
       allPosts.forEach((p) => {
         const dist = getDistanceKM(myLat, myLng, p.lat, p.lng);
-        if (dist > 3) return;
+        if (dist > 3 || p.type === 'Business') return;
 
         const diff = getDayDiff(p.createdAt);
         if (currentFilter === "today" && diff !== 0) return;
@@ -828,6 +852,69 @@
       if (count === 0) feed.innerHTML = `<div class='box'>${t.noPosts}</div>`;
     }
 
+    window.toggleShopForm = () => {
+      const f = document.getElementById("shopPostForm");
+      f.style.display = (f.style.display === "block") ? "none" : "block";
+    };
+
+    window.previewShopPhoto = () => {
+      const file = document.getElementById("shopPhotoInput").files[0];
+      if (file) document.getElementById("shopMediaStatus").innerText = "✅ Photo selected: " + file.name;
+    };
+
+    window.sendShopPost = async () => {
+      const name = document.getElementById("shopName").value.trim();
+      const cat = document.getElementById("shopCategory").value.trim() || "Local Shop";
+      const text = document.getElementById("shopText").value.trim();
+      const photoFile = document.getElementById("shopPhotoInput").files[0];
+
+      if (!myLat) return alert(translations[currentLang].locOff);
+      if (!name) return alert("Please enter your Shop Name!");
+      if (!text && !photoFile) return alert("Please write an offer or select a photo!");
+
+      document.getElementById("shopMediaStatus").innerText = "⏳ Publishing shop offer...";
+      let imageUrl = "";
+      if (photoFile) imageUrl = await uploadToCloudinary(photoFile, "image");
+
+      await addDoc(collection(db, "posts"), {
+        name, type: "Business", category: cat, text, imageUrl, audioUrl: "",
+        lat: myLat, lng: myLng, deviceId, avatarUrl: userProfile.avatarUrl || "",
+        likes: 0, dislikes: 0, likedBy: [], dislikedBy: [], comments: [], createdAt: Date.now()
+      });
+
+      document.getElementById("shopText").value = "";
+      document.getElementById("shopPhotoInput").value = "";
+      document.getElementById("shopMediaStatus").innerText = "";
+      document.getElementById("shopPostForm").style.display = "none";
+      alert("Shop offer published!");
+    };
+
+    function renderShops() {
+      const box = document.getElementById("shopsFeed");
+      if (!box || !myLat) return;
+      const shopPosts = allPosts.filter(p => p.type === "Business" && getDistanceKM(myLat, myLng, p.lat, p.lng) <= 3);
+      if (shopPosts.length === 0) {
+        box.innerHTML = "<div class='box'>No shop offers within 3 KM yet. Tap '➕ Post Offer' above to add your shop!</div>";
+        return;
+      }
+      box.innerHTML = shopPosts.map(p => {
+        const dist = getDistanceKM(myLat, myLng, p.lat, p.lng).toFixed(1);
+        const safeName = (p.name || "Shop").replace(/'/g, "");
+        return `<div class="post" style="border-left:4px solid #ff9800;">
+          <div class="post-header">
+            <div><strong style="font-size:15px;color:#b26a00;">🏪 ${p.name}</strong> <span class="badge" style="background:#fff3e0;color:#e65100;">${p.category || 'Shop'}</span>${getFriendBtnHTML(p.deviceId, safeName)}</div>
+            <span>${dist} km</span>
+          </div>
+          <div style="margin-top:6px;">${p.text || ""}</div>
+          ${p.imageUrl ? `<img src="${p.imageUrl}" class="post-img" loading="lazy">` : ""}
+          <div class="actions">
+            <button onclick="reactPost('${p.id}', 'likes')">👍 ${p.likes || 0}</button>
+            <button onclick="openChatWith('${p.deviceId}', '${safeName}')">💬 Inquiry / Chat</button>
+          </div>
+        </div>`;
+      }).join("");
+    }
+
     // Initialize everything cleanly
     applyLang();
     loadProfileUI();
@@ -855,6 +942,7 @@
           snapshot.forEach(docSnap => allPosts.push({ id: docSnap.id, ...docSnap.data() }));
           renderPosts();
           renderMyPosts();
+          renderShops();
         });
       },
       () => {
