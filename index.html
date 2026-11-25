@@ -177,6 +177,14 @@
             <button type="button" class="media-btn" onclick="document.getElementById('shopPhotoInput').click()">📷 Product Photo</button>
           </div>
           <div id="shopMediaStatus" class="media-status"></div>
+          <div id="shopPreviewBox" style="display:none;margin-top:8px;text-align:center;background:#fff;padding:8px;border-radius:8px;border:1px solid #ffe082;">
+            <canvas id="shopCanvas" style="max-width:100%;max-height:240px;border-radius:6px;"></canvas>
+            <div style="display:flex;gap:5px;justify-content:center;margin-top:6px;">
+              <button type="button" class="media-btn" onclick="applyPhotoMode('shop','orig')">🖼️ Original</button>
+              <button type="button" class="media-btn" onclick="applyPhotoMode('shop','ai')">✨ AI Enhance</button>
+              <button type="button" class="media-btn" onclick="applyPhotoMode('shop','blur')">🌫️ Focus Blur</button>
+            </div>
+          </div>
           <button type="button" style="background:#ff9800;" onclick="sendShopPost()">🚀 Publish to Local Market</button>
         </div>
       </div>
@@ -225,6 +233,14 @@
           <button type="button" class="media-btn" id="btnVoice" onclick="toggleRecord()">🎤 Voice</button>
         </div>
         <div id="mediaStatus" class="media-status"></div>
+        <div id="profPreviewBox" style="display:none;margin-top:8px;text-align:center;background:#f8f9fa;padding:8px;border-radius:8px;border:1px solid #ddd;">
+          <canvas id="profCanvas" style="max-width:100%;max-height:240px;border-radius:6px;"></canvas>
+          <div style="display:flex;gap:5px;justify-content:center;margin-top:6px;">
+            <button type="button" class="media-btn" onclick="applyPhotoMode('prof','orig')">🖼️ Original</button>
+            <button type="button" class="media-btn" onclick="applyPhotoMode('prof','ai')">✨ AI Enhance</button>
+            <button type="button" class="media-btn" onclick="applyPhotoMode('prof','blur')">🌫️ Focus Blur</button>
+          </div>
+        </div>
         <button id="uiPostBtn" onclick="sendPost()">Post</button>
       </div>
 
@@ -485,9 +501,81 @@
       }
     };
 
+    let photoState = { prof: { img: null, mode: 'orig' }, shop: { img: null, mode: 'orig' } };
+
+    function loadPhotoToCanvas(kind, file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          photoState[kind].img = img;
+          photoState[kind].mode = 'ai';
+          document.getElementById(kind + "PreviewBox").style.display = "block";
+          applyPhotoMode(kind, 'ai');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    window.applyPhotoMode = (kind, mode) => {
+      const st = photoState[kind];
+      if (!st.img) return;
+      st.mode = mode;
+      const canvas = document.getElementById(kind + "Canvas");
+      const ctx = canvas.getContext("2d");
+      const maxW = 900;
+      const scale = Math.min(1, maxW / st.img.width);
+      canvas.width = st.img.width * scale;
+      canvas.height = st.img.height * scale;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (mode === 'orig') {
+        ctx.filter = "none";
+        ctx.drawImage(st.img, 0, 0, canvas.width, canvas.height);
+      } else if (mode === 'ai') {
+        ctx.filter = "contrast(1.12) saturate(1.18) brightness(1.06)";
+        ctx.drawImage(st.img, 0, 0, canvas.width, canvas.height);
+      } else if (mode === 'blur') {
+        ctx.filter = "blur(9px) brightness(0.95)";
+        ctx.drawImage(st.img, 0, 0, canvas.width, canvas.height);
+        const off = document.createElement("canvas");
+        off.width = canvas.width; off.height = canvas.height;
+        const octx = off.getContext("2d");
+        octx.filter = "contrast(1.12) saturate(1.18) brightness(1.06)";
+        octx.drawImage(st.img, 0, 0, off.width, off.height);
+        octx.filter = "none";
+        octx.globalCompositeOperation = "destination-in";
+        const cx = off.width / 2, cy = off.height / 2, r = Math.min(off.width, off.height) * 0.48;
+        const grad = octx.createRadialGradient(cx, cy, r * 0.55, cx, cy, r * 1.15);
+        grad.addColorStop(0, "rgba(0,0,0,1)");
+        grad.addColorStop(1, "rgba(0,0,0,0)");
+        octx.fillStyle = grad;
+        octx.fillRect(0, 0, off.width, off.height);
+        ctx.filter = "none";
+        ctx.drawImage(off, 0, 0);
+      }
+      ctx.filter = "none";
+    };
+
+    async function uploadEnhancedPhoto(kind, rawFile) {
+      const st = photoState[kind];
+      let fileToUpload = rawFile;
+      if (st.img && st.mode !== 'orig') {
+        const canvas = document.getElementById(kind + "Canvas");
+        fileToUpload = await new Promise(res => canvas.toBlob(b => res(b), "image/jpeg", 0.9));
+      }
+      let url = await uploadToCloudinary(fileToUpload, "image");
+      if (url && st.mode !== 'orig') url = url.replace("/upload/", "/upload/e_improve,q_auto/");
+      return url;
+    }
+
     window.previewPhoto = () => {
       const file = document.getElementById("photoInput").files[0];
-      if (file) document.getElementById("mediaStatus").innerText = translations[currentLang].photoReady + ": " + file.name;
+      if (file) {
+        document.getElementById("mediaStatus").innerText = translations[currentLang].photoReady + " (Choose style below)";
+        loadPhotoToCanvas('prof', file);
+      }
     };
 
     window.toggleRecord = async () => {
@@ -535,7 +623,7 @@
       document.getElementById("mediaStatus").innerText = t.uploading;
 
       let imageUrl = "", audioUrl = "";
-      if (photoFile) imageUrl = await uploadToCloudinary(photoFile, "image");
+      if (photoFile) imageUrl = await uploadEnhancedPhoto("prof", photoFile);
       if (recordedBlob) audioUrl = await uploadToCloudinary(recordedBlob, "video");
 
       await addDoc(collection(db, "posts"), {
@@ -546,6 +634,7 @@
 
       document.getElementById("postText").value = "";
       document.getElementById("photoInput").value = "";
+      document.getElementById("profPreviewBox").style.display = "none";
       recordedBlob = null;
       document.getElementById("mediaStatus").innerText = "";
       postBtn.disabled = false;
@@ -928,7 +1017,10 @@
 
     window.previewShopPhoto = () => {
       const file = document.getElementById("shopPhotoInput").files[0];
-      if (file) document.getElementById("shopMediaStatus").innerText = "✅ Photo selected: " + file.name;
+      if (file) {
+        document.getElementById("shopMediaStatus").innerText = "✅ Photo selected (Choose style below)";
+        loadPhotoToCanvas('shop', file);
+      }
     };
 
     window.sendShopPost = async () => {
@@ -943,7 +1035,7 @@
 
       document.getElementById("shopMediaStatus").innerText = "⏳ Publishing shop offer...";
       let imageUrl = "";
-      if (photoFile) imageUrl = await uploadToCloudinary(photoFile, "image");
+      if (photoFile) imageUrl = await uploadEnhancedPhoto("shop", photoFile);
 
       await addDoc(collection(db, "posts"), {
         name, type: "Business", category: cat, text, imageUrl, audioUrl: "",
@@ -953,6 +1045,7 @@
 
       document.getElementById("shopText").value = "";
       document.getElementById("shopPhotoInput").value = "";
+      document.getElementById("shopPreviewBox").style.display = "none";
       document.getElementById("shopMediaStatus").innerText = "";
       document.getElementById("shopPostForm").style.display = "none";
       alert("Shop offer published!");
