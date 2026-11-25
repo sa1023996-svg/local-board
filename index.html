@@ -1108,7 +1108,9 @@
       );
     };
 
-    setTimeout(() => { if (!myLat) locHelp.style.display = "block"; }, 2500);
+    setInterval(() => {
+      locHelp.style.display = myLat ? "none" : "block";
+    }, 1500);
 
     // --- FACEBOOK-STYLE PRIVACY LOCK ---
     window.togglePrivacyLock = async () => {
