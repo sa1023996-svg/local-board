@@ -27,7 +27,7 @@
     .post-header { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #555; margin-bottom: 4px; }
     .post-time { font-size: 11px; color: #888; margin-bottom: 6px; }
     .badge { background: #e7f3ff; color: #1877f2; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 11px; }
-    .mini-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 6px; }
+    .mini-avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 1.5px solid #1877f2; flex-shrink: 0; background: #e7f3ff; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; color: #1877f2; font-size: 16px; } .author-wrap { display: inline-flex; align-items: center; gap: 8px; }
     .user-link { cursor: pointer; color: #1877f2; }
     .user-link:hover { text-decoration: underline; }
     .add-friend-btn { background: #e7f3ff; color: #1877f2; border: 1px solid #b6d4fe; border-radius: 12px; padding: 2px 8px; font-size: 11px; margin: 0 0 0 6px; width: auto; display: inline-block; }
@@ -804,10 +804,9 @@
         feed.innerHTML += `
           <div class="post">
             <div class="post-header">
-              <strong><span class="user-link" onclick="openPublicProfile('${p.deviceId || ''}', '${safeName}')">${p.avatarUrl ? `<img src="${p.avatarUrl}" class="mini-avatar">` : ''}${p.name}</span> <span class="badge">${p.type}</span>${getFriendBtnHTML(p.deviceId, p.name)}</strong>
+              <div class="author-wrap"><span class="user-link" style="display:inline-flex;align-items:center;gap:8px;" onclick="openPublicProfile('${p.deviceId || ''}', '${safeName}')">${(allUsersMap[p.deviceId]?.avatarUrl || p.avatarUrl) ? `<img src="${allUsersMap[p.deviceId]?.avatarUrl || p.avatarUrl}" class="mini-avatar">` : `<span class="mini-avatar">${(p.name || 'U')[0].toUpperCase()}</span>`}<div><div style="font-weight:bold;line-height:1.2;">${p.name} <span class="badge">${p.type}</span>${(userProfile.name && p.name.toLowerCase() === userProfile.name.toLowerCase()) ? '' : getFriendBtnHTML(p.deviceId, p.name)}</div><div class="post-time" style="margin:2px 0 0 0;">🕒 ${timeStr}</div></div></span></div>
               <span>${dist.toFixed(1)} ${t.away}</span>
             </div>
-            <div class="post-time">🕒 ${timeStr}</div>
             <div>${p.text || ""}</div>
             ${p.imageUrl ? `<img src="${p.imageUrl}" class="post-img" loading="lazy">` : ""}
             ${p.audioUrl ? `<audio controls src="${p.audioUrl}" class="post-audio"></audio>` : ""}
@@ -836,6 +835,7 @@
     onSnapshot(collection(db, "users"), (snap) => {
       allUsersMap = {};
       snap.forEach(d => { allUsersMap[d.id] = d.data(); });
+      renderPosts();
     });
 
     onSnapshot(collection(db, "friends"), (snap) => {
