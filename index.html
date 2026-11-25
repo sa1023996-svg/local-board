@@ -149,7 +149,23 @@
             <strong style="color:#b26a00;font-size:15px;">🏪 Local Shops & Offers (3 KM)</strong>
             <div style="font-size:12px;color:#666;">Nearby shops, groceries, services & deals</div>
           </div>
-          <button type="button" style="width:auto;margin:0;padding:7px 12px;background:#ff9800;font-size:12px;" onclick="toggleShopForm()">➕ Post Offer</button>
+          <div style="display:flex;gap:6px;">
+            <button type="button" style="width:auto;margin:0;padding:7px 10px;background:#fff;color:#b26a00;border:1px solid #ff9800;font-size:12px;" onclick="toggleMyShop()">🏪 My Shop</button>
+            <button type="button" style="width:auto;margin:0;padding:7px 10px;background:#ff9800;font-size:12px;" onclick="toggleShopForm()">➕ Post Offer</button>
+          </div>
+        </div>
+
+        <div id="myShopBox" style="display:none;margin-top:12px;border-top:1px solid #ffe082;padding-top:10px;text-align:center;">
+          <div style="position:relative;width:84px;height:84px;margin:0 auto 8px auto;">
+            <img id="shopAvatarImg" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='80'>🏪</text></svg>" style="width:100%;height:100%;border-radius:50%;object-fit:cover;border:3px solid #ff9800;background:#fff;">
+            <input type="file" id="shopAvatarInput" accept="image/*" style="display:none;" onchange="uploadShopAvatar()">
+            <button type="button" class="avatar-cam" onclick="document.getElementById('shopAvatarInput').click()">📷</button>
+          </div>
+          <div style="font-size:11px;color:#666;margin-bottom:6px;">Shop Photo (Optional — uses Profile photo if blank)</div>
+          <input type="text" id="myShopName" placeholder="🏪 Shop Name (e.g. Ansari Kirana)">
+          <input type="text" id="myShopCat" placeholder="📦 Category (e.g. Grocery, Mobile, Medical)">
+          <input type="text" id="myShopAddr" placeholder="📍 Address / Timing (Optional)">
+          <button type="button" style="background:#b26a00;" onclick="saveMyShop()">💾 Save My Shop</button>
         </div>
 
         <div id="shopPostForm" style="display:none;margin-top:12px;border-top:1px solid #ffe082;padding-top:10px;">
@@ -859,7 +875,53 @@
       if (count === 0) feed.innerHTML = `<div class='box'>${t.noPosts}</div>`;
     }
 
+    let shopProfile = JSON.parse(localStorage.getItem("localShopProfile") || "{}");
+
+    function loadMyShopUI() {
+      const pic = shopProfile.photoUrl || userProfile.avatarUrl;
+      if (pic) document.getElementById("shopAvatarImg").src = pic;
+      if (shopProfile.name) {
+        document.getElementById("myShopName").value = shopProfile.name;
+        document.getElementById("shopName").value = shopProfile.name;
+      }
+      if (shopProfile.cat) {
+        document.getElementById("myShopCat").value = shopProfile.cat;
+        document.getElementById("shopCategory").value = shopProfile.cat;
+      }
+      if (shopProfile.addr) document.getElementById("myShopAddr").value = shopProfile.addr;
+    }
+
+    window.toggleMyShop = () => {
+      document.getElementById("shopPostForm").style.display = "none";
+      const b = document.getElementById("myShopBox");
+      b.style.display = (b.style.display === "block") ? "none" : "block";
+      loadMyShopUI();
+    };
+
+    window.uploadShopAvatar = async () => {
+      const file = document.getElementById("shopAvatarInput").files[0];
+      if (!file) return;
+      const url = await uploadToCloudinary(file, "image");
+      if (url) {
+        shopProfile.photoUrl = url;
+        localStorage.setItem("localShopProfile", JSON.stringify(shopProfile));
+        loadMyShopUI();
+      }
+    };
+
+    window.saveMyShop = () => {
+      shopProfile.name = document.getElementById("myShopName").value.trim();
+      shopProfile.cat = document.getElementById("myShopCat").value.trim();
+      shopProfile.addr = document.getElementById("myShopAddr").value.trim();
+      localStorage.setItem("localShopProfile", JSON.stringify(shopProfile));
+      loadMyShopUI();
+      document.getElementById("myShopBox").style.display = "none";
+      alert("My Shop Profile saved!");
+    };
+
     window.toggleShopForm = () => {
+      document.getElementById("myShopBox").style.display = "none";
+      loadMyShopUI();
       const f = document.getElementById("shopPostForm");
       f.style.display = (f.style.display === "block") ? "none" : "block";
     };
@@ -885,7 +947,7 @@
 
       await addDoc(collection(db, "posts"), {
         name, type: "Business", category: cat, text, imageUrl, audioUrl: "",
-        lat: myLat, lng: myLng, deviceId, avatarUrl: userProfile.avatarUrl || "",
+        lat: myLat, lng: myLng, deviceId, avatarUrl: shopProfile.photoUrl || userProfile.avatarUrl || "",
         likes: 0, dislikes: 0, likedBy: [], dislikedBy: [], comments: [], createdAt: Date.now()
       });
 
@@ -909,7 +971,7 @@
         const safeName = (p.name || "Shop").replace(/'/g, "");
         return `<div class="post" style="border-left:4px solid #ff9800;">
           <div class="post-header">
-            <div><strong style="font-size:15px;color:#b26a00;">🏪 ${p.name}</strong> <span class="badge" style="background:#fff3e0;color:#e65100;">${p.category || 'Shop'}</span>${getFriendBtnHTML(p.deviceId, safeName)}</div>
+            <div><span style="display:inline-flex;align-items:center;gap:8px;">${p.avatarUrl ? `<img src="${p.avatarUrl}" class="mini-avatar" style="border-color:#ff9800;">` : `<span class="mini-avatar" style="border-color:#ff9800;background:#fff3e0;color:#e65100;">🏪</span>`}<strong style="font-size:15px;color:#b26a00;">${p.name}</strong></span> <span class="badge" style="background:#fff3e0;color:#e65100;">${p.category || 'Shop'}</span>${getFriendBtnHTML(p.deviceId, safeName)}</div>
             <span>${dist} km</span>
           </div>
           <div style="margin-top:6px;">${p.text || ""}</div>
