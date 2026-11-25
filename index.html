@@ -78,6 +78,16 @@
     .prod-spec-item { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; border-bottom: 1px dashed #cbd5e1; }
     .prod-spec-item:last-child { border-bottom: none; }
 
+  
+    .story-bar { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 12px 0; scrollbar-width: none; }
+    .story-bar::-webkit-scrollbar { display: none; }
+    .story-card { flex: 0 0 98px; height: 158px; border-radius: 12px; position: relative; overflow: hidden; cursor: pointer; background: #1e293b; box-shadow: 0 2px 5px rgba(0,0,0,0.15); }
+    .story-add { background: #fff; border: 2px dashed #1877f2; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #1877f2; font-weight: bold; font-size: 12px; text-align: center; padding: 6px; box-sizing: border-box; }
+    .story-bg { width: 100%; height: 100%; object-fit: cover; }
+    .story-av { position: absolute; top: 8px; left: 8px; width: 32px; height: 32px; border-radius: 50%; border: 2.5px solid #1877f2; object-fit: cover; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; color: #1877f2; }
+    .story-name { position: absolute; bottom: 0; left: 0; right: 0; padding: 18px 6px 6px 6px; background: linear-gradient(transparent, rgba(0,0,0,0.85)); color: #fff; font-size: 11px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .story-modal { display: none; position: fixed; inset: 0; background: #000; z-index: 10000; flex-direction: column; justify-content: center; align-items: center; }
+
   </style>
 </head>
 <body>
@@ -1242,6 +1252,98 @@
       document.getElementById("prodDetailModal").style.display = "none";
     };
 
+    // --- FACEBOOK-STYLE 24H STORIES & LIVE 3 KM AUTO-HIDE ---
+    let allStories = [];
+    const storyBar = document.createElement("div");
+    storyBar.id = "storyBar";
+    storyBar.className = "story-bar";
+    const hv = document.getElementById("homeView");
+    if (hv) hv.prepend(storyBar);
+
+    window.uploadNewStory = async () => {
+      const file = document.getElementById("storyPhotoInput").files[0];
+      if (!file) return;
+      if (!myLat) return alert("Please allow GPS Location first.");
+      const caption = prompt("Add a short caption (Optional):") || "";
+      const url = await uploadToCloudinary(file, "image");
+      if (!url) return alert("Photo upload failed.");
+      const stName = userProfile.name || "Local User";
+      await addDoc(collection(db, "stories"), {
+        name: stName,
+        avatarUrl: userProfile.avatarUrl || "",
+        imageUrl: url.replace("/upload/", "/upload/e_improve,q_auto/"),
+        caption: caption.trim(),
+        lat: myLat,
+        lng: myLng,
+        deviceId,
+        createdAt: Date.now()
+      });
+      document.getElementById("storyPhotoInput").value = "";
+      alert("Story added for 24 hours (3 KM range)!");
+    };
+
+    function renderStories() {
+      const bar = document.getElementById("storyBar");
+      if (!bar) return;
+      const now = Date.now();
+      const validStories = allStories.filter(st => {
+        if (now - (st.createdAt || 0) > 86400000) return false;
+        if (!myLat) return false;
+        return getDistanceKM(myLat, myLng, st.lat, st.lng) <= 3;
+      });
+      let html = `<div class="story-card story-add" onclick="document.getElementById('storyPhotoInput').click()">
+        <div style="font-size:28px;margin-bottom:4px;">➕</div>
+        <div>Add Story</div>
+        <div style="font-size:9px;color:#666;margin-top:2px;">24h • 3 KM</div>
+      </div>`;
+      html += validStories.map(st => {
+        const av = st.avatarUrl
+          ? `<img src="${st.avatarUrl}" class="story-av">`
+          : `<div class="story-av">${(st.name || "U")[0].toUpperCase()}</div>`;
+        return `<div class="story-card" onclick="openStoryViewer('${st.id}')">
+          <img src="${st.imageUrl}" class="story-bg" loading="lazy">
+          ${av}
+          <div class="story-name">${st.name || "User"}</div>
+        </div>`;
+      }).join("");
+      bar.innerHTML = html;
+    }
+
+    window.openStoryViewer = (id) => {
+      const st = allStories.find(x => x.id === id);
+      if (!st) return;
+      const dist = myLat ? getDistanceKM(myLat, myLng, st.lat, st.lng).toFixed(1) + " km away" : "";
+      document.getElementById("stViewName").innerText = st.name || "User";
+      document.getElementById("stViewMeta").innerText = dist + " • 24h Story";
+      document.getElementById("stViewImg").src = st.imageUrl;
+      const capEl = document.getElementById("stViewCap");
+      if (st.caption) { capEl.innerText = st.caption; capEl.style.display = "block"; }
+      else { capEl.style.display = "none"; }
+      document.getElementById("storyModal").style.display = "flex";
+    };
+
+    window.closeStoryViewer = () => {
+      document.getElementById("storyModal").style.display = "none";
+    };
+
+    onSnapshot(collection(db, "stories"), (snap) => {
+      allStories = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      renderStories();
+    });
+
+    // Live GPS Movement Tracking: Auto-hide posts/stories if you move > 3 KM away
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition((pos) => {
+        const nLat = pos.coords.latitude, nLng = pos.coords.longitude;
+        if (!myLat || getDistanceKM(myLat, myLng, nLat, nLng) > 0.05) {
+          myLat = nLat; myLng = nLng;
+          renderPosts();
+          renderShops();
+          renderStories();
+        }
+      }, () => {}, { enableHighAccuracy: false, maximumAge: 15000 });
+    }
+
     // Initialize everything cleanly
     applyLang();
     loadProfileUI();
@@ -1301,5 +1403,18 @@
       </div>
     </div>
   </div>
+  <!-- STORY VIEWER MODAL -->
+  <div id="storyModal" class="story-modal" onclick="closeStoryViewer()">
+    <div style="position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:center;color:#fff;z-index:2;">
+      <div>
+        <div id="stViewName" style="font-weight:bold;font-size:15px;"></div>
+        <div id="stViewMeta" style="font-size:11px;opacity:0.8;"></div>
+      </div>
+      <button type="button" onclick="closeStoryViewer()" style="width:36px;height:36px;margin:0;padding:0;border-radius:50%;background:rgba(255,255,255,0.2);color:#fff;font-size:16px;">✖</button>
+    </div>
+    <img id="stViewImg" src="" style="max-width:100%;max-height:80vh;object-fit:contain;">
+    <div id="stViewCap" style="position:absolute;bottom:24px;left:16px;right:16px;text-align:center;color:#fff;background:rgba(0,0,0,0.6);padding:8px 12px;border-radius:10px;font-size:14px;display:none;"></div>
+  </div>
+  <input type="file" id="storyPhotoInput" accept="image/*" style="display:none;" onchange="uploadNewStory()">
 </body>
 </html>
