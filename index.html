@@ -917,7 +917,7 @@
 
       allPosts.forEach((p) => {
         const dist = getDistanceKM(myLat, myLng, p.lat, p.lng);
-        if (dist > 3 || p.type === 'Business') return;
+        if (dist > 3) return;
 
         const diff = getDayDiff(p.createdAt);
         if (currentFilter === "today" && diff !== 0) return;
@@ -1076,6 +1076,36 @@
         </div>`;
       }).join("");
     }
+
+    // Smart GPS Retry Banner for Mobile Users
+    const locHelp = document.createElement("div");
+    locHelp.id = "locHelpBox";
+    locHelp.style.cssText = "display:none;background:#fff3cd;border:1px solid #ffc107;color:#856404;padding:10px;border-radius:8px;margin:0 0 12px 0;text-align:center;font-size:13px;";
+    locHelp.innerHTML = `
+      <div style="margin-bottom:6px;">📍 <b>GPS Location नहीं मिल रहा?</b><br><span style="font-size:11px;">फोन का GPS ऑन करें और लिंक को <b>Chrome</b> में खोलें।</span></div>
+      <button type="button" style="width:auto;margin:0;padding:6px 14px;background:#1877f2;font-size:12px;" onclick="retryGPS()">🔄 Retry Location</button>
+    `;
+    const homeEl = document.getElementById("homeView");
+    if (homeEl) homeEl.prepend(locHelp);
+
+    window.retryGPS = () => {
+      if (!navigator.geolocation) return alert("Browser does not support GPS.");
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          myLat = pos.coords.latitude;
+          myLng = pos.coords.longitude;
+          locHelp.style.display = "none";
+          renderPosts();
+          renderShops();
+        },
+        () => {
+          alert("Chrome में ऊपर लिंक के बाईं तरफ ताले (🔒) या Settings आइकन पर टैप करें -> Permissions -> Location -> Allow करें, फिर पेज रिफ्रेश करें।");
+        },
+        { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+      );
+    };
+
+    setTimeout(() => { if (!myLat) locHelp.style.display = "block"; }, 2500);
 
     // Initialize everything cleanly
     applyLang();
