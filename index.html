@@ -166,6 +166,74 @@
     }
     .job-badge { background: #7c3aed !important; }
 
+  
+    /* STEP 3: 100% FULL DARK MODE FIX */
+    body.dark-mode .post,
+    body.dark-mode .post-card,
+    body.dark-mode .story-add,
+    body.dark-mode .filter-btn,
+    body.dark-mode .date-pill,
+    body.dark-mode .msg-item,
+    body.dark-mode .chat-box,
+    body.dark-mode #feed > div,
+    body.dark-mode #shopsFeed > div:not(.noon-grid),
+    body.dark-mode #buySellFeed > div:not(.noon-grid),
+    body.dark-mode #friendsView > div,
+    body.dark-mode #profileView > div {
+      background: #1e293b !important;
+      color: #f1f5f9 !important;
+      border-color: #334155 !important;
+    }
+    body.dark-mode [style*="background:#fff"],
+    body.dark-mode [style*="background: #fff"],
+    body.dark-mode [style*="background:white"],
+    body.dark-mode [style*="background: white"],
+    body.dark-mode [style*="background:#f8f9fa"],
+    body.dark-mode [style*="background: #f8f9fa"] {
+      background: #1e293b !important;
+      color: #f1f5f9 !important;
+      border-color: #334155 !important;
+    }
+    body.dark-mode button:not(.dark-toggle-btn) {
+      border-color: #475569 !important;
+    }
+    body.dark-mode .post button,
+    body.dark-mode #feed button {
+      background: #334155 !important;
+      color: #f8fafc !important;
+    }
+    body.dark-mode small, body.dark-mode .meta, body.dark-mode .sub {
+      color: #94a3b8 !important;
+    }
+
+    /* 3-FOLDER CHAT TABS & PRIVACY BAR */
+    .inbox-tabs {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+      margin-bottom: 10px;
+    }
+    .inbox-tab-btn {
+      padding: 8px 4px !important; margin: 0 !important; font-size: 12px !important;
+      font-weight: bold; border-radius: 8px !important;
+      background: #e2e8f0 !important; color: #1e293b !important; border: none !important;
+    }
+    body.dark-mode .inbox-tab-btn {
+      background: #334155 !important; color: #cbd5e1 !important;
+    }
+    .inbox-tab-btn.active {
+      background: #2563eb !important; color: #fff !important;
+    }
+    .priv-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 12px; border-radius: 10px; background: #fff;
+      border: 1px solid #cbd5e1; margin-bottom: 10px; font-size: 13px; font-weight: bold;
+    }
+    .toggle-pill {
+      padding: 5px 12px !important; margin: 0 !important; width: auto !important;
+      border-radius: 20px !important; font-size: 12px !important; font-weight: bold;
+    }
+    .toggle-on { background: #16a34a !important; color: #fff !important; }
+    .toggle-off { background: #dc2626 !important; color: #fff !important; }
+
   </style>
 </head>
 <body>
@@ -1886,6 +1954,293 @@
       }).join("") + "</div>";
     };
 
+    // --- STEP 3: 3-FOLDER CHAT, PRIVACY TOGGLES & LOCKED PROFILE ---
+    let privacySettings = JSON.parse(localStorage.getItem("swiftcart_privacy") || '{"unknownMsg":true,"profileLock":false}');
+    let businessChatPeers = JSON.parse(localStorage.getItem("swiftcart_biz_peers") || "[]");
+    let activeInboxFolder = "personal";
+
+    function savePrivacySettings() {
+      localStorage.setItem("swiftcart_privacy", JSON.stringify(privacySettings));
+      if (typeof userProfile !== "undefined") {
+        userProfile.unknownMsg = privacySettings.unknownMsg;
+        userProfile.profileLock = privacySettings.profileLock;
+        localStorage.setItem("userProfile", JSON.stringify(userProfile));
+      }
+      // Sync privacy flags to Firestore user doc if available
+      try {
+        setDoc(doc(db, "users", deviceId), {
+          deviceId,
+          name: (typeof userProfile !== "undefined" && userProfile.name) ? userProfile.name : "User",
+          avatarUrl: (typeof userProfile !== "undefined" && userProfile.avatarUrl) ? userProfile.avatarUrl : "",
+          unknownMsg: privacySettings.unknownMsg,
+          profileLock: privacySettings.profileLock,
+          updatedAt: Date.now()
+        }, { merge: true });
+      } catch (e) {}
+      updatePrivacyButtonsUI();
+    }
+
+    window.toggleUnknownMsg = () => {
+      privacySettings.unknownMsg = !privacySettings.unknownMsg;
+      savePrivacySettings();
+    };
+
+    window.toggleProfileLock = () => {
+      privacySettings.profileLock = !privacySettings.profileLock;
+      savePrivacySettings();
+      alert(privacySettings.profileLock ? "🔒 Profile Locked! Strangers cannot view your profile history." : "🔓 Profile Unlocked.");
+    };
+
+    function updatePrivacyButtonsUI() {
+      const uBtn = document.getElementById("unkMsgToggleBtn");
+      if (uBtn) {
+        uBtn.innerText = privacySettings.unknownMsg ? "ON" : "OFF";
+        uBtn.className = "toggle-pill " + (privacySettings.unknownMsg ? "toggle-on" : "toggle-off");
+      }
+      const pBtn = document.getElementById("profLockToggleBtn");
+      if (pBtn) {
+        pBtn.innerText = privacySettings.profileLock ? "🔒 LOCKED" : "🔓 PUBLIC";
+        pBtn.className = "toggle-pill " + (privacySettings.profileLock ? "toggle-on" : "toggle-off");
+      }
+    }
+
+    // Wrap openChatWith to separate Business/Buy-Sell chats from Personal chats
+    const _origOpenChatWith = typeof window.openChatWith === "function" ? window.openChatWith : null;
+    window.openChatWith = function(peerId, peerName, forceType) {
+      const isBizContext = forceType === "business"
+        || document.getElementById("shopsView")?.style.display === "block"
+        || document.getElementById("buySellView")?.style.display === "block";
+
+      if (isBizContext && peerId && !businessChatPeers.includes(peerId)) {
+        businessChatPeers.push(peerId);
+        localStorage.setItem("swiftcart_biz_peers", JSON.stringify(businessChatPeers));
+      }
+      if (_origOpenChatWith) return _origOpenChatWith(peerId, peerName);
+    };
+
+    // Setup 3-Folder Bar inside Friends View & Privacy Card inside Profile View
+    (function setupStep3UI() {
+      const fv = document.getElementById("friendsView");
+      if (fv && !document.getElementById("inboxFolderBar")) {
+        const topWrap = document.createElement("div");
+        topWrap.id = "inboxFolderBar";
+        topWrap.innerHTML = `
+          <div class="inbox-tabs">
+            <button type="button" id="tabPersonalBtn" class="inbox-tab-btn active" onclick="switchInboxFolder('personal')">💬 Personal</button>
+            <button type="button" id="tabBizBtn" class="inbox-tab-btn" onclick="switchInboxFolder('business')">🛍️ Buy/Sell & Jobs</button>
+            <button type="button" id="tabReqBtn" class="inbox-tab-btn" onclick="switchInboxFolder('requests')">🤝 Requests</button>
+          </div>
+          <div id="personalPrivacyBar" class="priv-bar">
+            <span>🛡️ Unknown Messages</span>
+            <button type="button" id="unkMsgToggleBtn" class="toggle-pill toggle-on" onclick="toggleUnknownMsg()">ON</button>
+          </div>
+          <div id="customFolderContainer" style="display:none;"></div>
+        `;
+        fv.prepend(topWrap);
+      }
+
+      const pv = document.getElementById("profileView");
+      if (pv && !document.getElementById("profilePrivacyCard")) {
+        const pCard = document.createElement("div");
+        pCard.id = "profilePrivacyCard";
+        pCard.className = "box";
+        pCard.innerHTML = `
+          <div style="font-weight:bold;margin-bottom:8px;">🛡️ Safety & Privacy Controls</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:13px;">🔒 Lock My Profile</span>
+            <button type="button" id="profLockToggleBtn" class="toggle-pill toggle-off" onclick="toggleProfileLock()">🔓 PUBLIC</button>
+          </div>
+          <div style="font-size:11px;opacity:0.8;">When locked, your posts still appear in Today/Yesterday local feed, but strangers cannot open your profile history.</div>
+        `;
+        pv.prepend(pCard);
+      }
+      updatePrivacyButtonsUI();
+    })();
+
+    window.switchInboxFolder = (folder) => {
+      activeInboxFolder = folder;
+      ["tabPersonalBtn", "tabBizBtn", "tabReqBtn"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove("active");
+      });
+      const activeBtn = document.getElementById(folder === "personal" ? "tabPersonalBtn" : folder === "business" ? "tabBizBtn" : "tabReqBtn");
+      if (activeBtn) activeBtn.classList.add("active");
+
+      const fv = document.getElementById("friendsView");
+      const customBox = document.getElementById("customFolderContainer");
+      const privBar = document.getElementById("personalPrivacyBar");
+      if (!fv || !customBox) return;
+
+      // Toggle visibility of native personal list vs Business / Requests folders
+      Array.from(fv.children).forEach(child => {
+        if (child.id === "inboxFolderBar") return;
+        child.style.display = (folder === "personal") ? "" : "none";
+      });
+      if (privBar) privBar.style.display = (folder === "personal") ? "flex" : "none";
+
+      if (folder === "personal") {
+        customBox.style.display = "none";
+      } else if (folder === "business") {
+        customBox.style.display = "block";
+        renderBusinessChatsFolder();
+      } else if (folder === "requests") {
+        customBox.style.display = "block";
+        renderRequestsFolder();
+      }
+    };
+
+    function renderBusinessChatsFolder() {
+      const box = document.getElementById("customFolderContainer");
+      if (!box) return;
+      if (businessChatPeers.length === 0) {
+        box.innerHTML = "<div class='box'>🛍️ No Shop, Buy/Sell, or Job chats yet.<br><small>Chats started from Shops, Buy/Sell, or Jobs appear separately here.</small></div>";
+        return;
+      }
+      box.innerHTML = businessChatPeers.map(pid => {
+        const pPost = allPosts.find(x => x.deviceId === pid);
+        const label = pPost ? pPost.name : ("Shop / Seller (" + pid.slice(0, 5) + ")");
+        const itemHint = pPost ? (pPost.text || "").slice(0, 42) : "Shop / Item Inquiry";
+        const safeLabel = label.replace(/'/g, "");
+        return `<div class="box" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <div>
+            <div style="font-weight:bold;font-size:14px;">🛍️ ${label}</div>
+            <div style="font-size:11px;opacity:0.8;">${itemHint}</div>
+          </div>
+          <button type="button" onclick="openChatWith('${pid}', '${safeLabel}', 'business')" style="width:auto;margin:0;padding:7px 12px;background:#0d9488;color:#fff;border-radius:8px;font-size:12px;">💬 Open Chat</button>
+        </div>`;
+      }).join("");
+    }
+
+    // Friend Requests Listener & Renderer
+    let allFriendReqs = [];
+    try {
+      onSnapshot(collection(db, "friend_requests"), (snap) => {
+        allFriendReqs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (activeInboxFolder === "requests") renderRequestsFolder();
+      });
+    } catch (e) {}
+
+    window.sendSwiftFriendRequest = async (toId, toName) => {
+      if (!toId || toId === deviceId) return;
+      const myName = (typeof userProfile !== "undefined" && userProfile.name) ? userProfile.name : "Local User";
+      await addDoc(collection(db, "friend_requests"), {
+        fromId: deviceId,
+        fromName: myName,
+        toId,
+        toName: toName || "User",
+        status: "pending",
+        createdAt: Date.now()
+      });
+      alert("🤝 Friend Request sent! Once accepted, you can chat in Personal Messages.");
+    };
+
+    window.respondFriendReq = async (reqId, status, fromId, fromName) => {
+      await updateDoc(doc(db, "friend_requests", reqId), { status });
+      if (status === "accepted" && fromId) {
+        alert("✅ Accepted! Opening Personal Chat...");
+        openChatWith(fromId, fromName || "Friend", "personal");
+      }
+    };
+
+    function renderRequestsFolder() {
+      const box = document.getElementById("customFolderContainer");
+      if (!box) return;
+      const incoming = allFriendReqs.filter(r => r.toId === deviceId && r.status === "pending");
+      if (incoming.length === 0) {
+        box.innerHTML = "<div class='box'>🤝 No pending friend requests right now.</div>";
+        return;
+      }
+      box.innerHTML = incoming.map(r => {
+        const sName = (r.fromName || "User").replace(/'/g, "");
+        return `<div class="box" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <div>
+            <div style="font-weight:bold;font-size:14px;">👤 ${r.fromName || "Local User"}</div>
+            <div style="font-size:11px;opacity:0.8;">Wants to connect with you</div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button type="button" onclick="respondFriendReq('${r.id}', 'accepted', '${r.fromId}', '${sName}')" style="width:auto;margin:0;padding:6px 10px;background:#16a34a;color:#fff;border-radius:6px;font-size:12px;">✅ Accept</button>
+            <button type="button" onclick="respondFriendReq('${r.id}', 'rejected')" style="width:auto;margin:0;padding:6px 10px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;">✖</button>
+          </div>
+        </div>`;
+      }).join("");
+    }
+
+    // Open Public / Locked Profile when clicking user name in feed
+    window.openUserPublicProfile = async (targetDevId, targetName, targetAvatar) => {
+      if (!targetDevId) return;
+      const modal = document.getElementById("userPublicModal");
+      const body = document.getElementById("userPublicBody");
+      modal.style.display = "block";
+      body.innerHTML = "Loading profile...";
+
+      let isLocked = false;
+      let allowUnk = true;
+      try {
+        const uSnap = await getDoc(doc(db, "users", targetDevId));
+        if (uSnap.exists()) {
+          const d = uSnap.data();
+          isLocked = !!d.profileLock;
+          if (typeof d.unknownMsg === "boolean") allowUnk = d.unknownMsg;
+        }
+      } catch (e) {}
+
+      const isAcceptedFriend = allFriendReqs.some(r =>
+        r.status === "accepted" && ((r.fromId === deviceId && r.toId === targetDevId) || (r.toId === deviceId && r.fromId === targetDevId))
+      );
+      const safeName = (targetName || "User").replace(/'/g, "");
+      const avHtml = targetAvatar
+        ? `<img src="${targetAvatar}" class="shop-av-circle">`
+        : `<div class="shop-av-circle" style="display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:bold;color:#2563eb;">${(targetName || "U")[0].toUpperCase()}</div>`;
+
+      const actionHtml = (targetDevId === deviceId)
+        ? `<div style="font-size:12px;opacity:0.8;">This is your profile</div>`
+        : `<div style="display:flex;gap:8px;justify-content:center;margin-top:12px;">
+            <button type="button" onclick="sendSwiftFriendRequest('${targetDevId}', '${safeName}')" style="width:auto;margin:0;padding:8px 14px;background:#2563eb;color:#fff;border-radius:8px;font-weight:bold;">➕ Add Friend</button>
+            ${(allowUnk || isAcceptedFriend)
+              ? `<button type="button" onclick="document.getElementById('userPublicModal').style.display='none';openChatWith('${targetDevId}', '${safeName}', 'personal')" style="width:auto;margin:0;padding:8px 14px;background:#16a34a;color:#fff;border-radius:8px;font-weight:bold;">💬 Message</button>`
+              : `<button type="button" disabled style="width:auto;margin:0;padding:8px 12px;background:#64748b;color:#fff;border-radius:8px;font-size:11px;">🔒 Unknown Chat OFF</button>`
+            }
+          </div>`;
+
+      if (isLocked && targetDevId !== deviceId && !isAcceptedFriend) {
+        body.innerHTML = `
+          ${avHtml}
+          <h3 style="margin:6px 0;">${targetName || "User"}</h3>
+          <div style="margin:14px auto;padding:12px;border-radius:10px;background:rgba(239,68,68,0.12);border:1px solid #ef4444;max-width:280px;">
+            <div style="font-size:22px;">🔒</div>
+            <div style="font-weight:bold;margin-top:4px;">This profile is locked</div>
+            <div style="font-size:11px;opacity:0.85;margin-top:2px;">Only accepted friends can view profile history.</div>
+          </div>
+          ${actionHtml}
+        `;
+      } else {
+        const userPosts = allPosts.filter(p => p.deviceId === targetDevId).slice(0, 10);
+        body.innerHTML = `
+          ${avHtml}
+          <h3 style="margin:6px 0;">${targetName || "User"}</h3>
+          <div style="font-size:12px;opacity:0.8;">📍 Within 3 KM</div>
+          ${actionHtml}
+          <div style="text-align:left;margin-top:16px;font-weight:bold;">Recent Posts (${userPosts.length})</div>
+          <div style="text-align:left;margin-top:8px;">
+            ${userPosts.map(p => `<div class="box" style="font-size:12px;">${p.text || "📷 Photo Post"}</div>`).join("") || "<div class='box'>No posts yet.</div>"}
+          </div>
+        `;
+      }
+    };
+
+    // Delegate click on post author header in #feed to open Public / Locked Profile
+    document.addEventListener("click", (e) => {
+      const postEl = e.target.closest("#feed .post, #feed .box");
+      if (!postEl) return;
+      if (e.target.tagName === "BUTTON" || e.target.tagName === "IMG" || e.target.tagName === "INPUT") return;
+      const headerHit = e.target.closest("strong, b, .post-header, .user-name");
+      if (headerHit) {
+        const txt = (headerHit.innerText || "").trim();
+        const matched = allPosts.find(p => p.name === txt);
+        if (matched) openUserPublicProfile(matched.deviceId, matched.name, matched.avatarUrl);
+      }
+    });
+
     // Initialize everything cleanly
     applyLang();
     loadProfileUI();
@@ -2014,6 +2369,15 @@
 
     <div style="font-weight:bold;margin:12px 0 6px 0;">📦 My Shop Items & Jobs</div>
     <div id="myShopItemsList"></div>
+  </div>
+  <!-- PUBLIC / LOCKED USER PROFILE POPUP -->
+  <div id="userPublicModal" class="full-page-modal" style="z-index:9950;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <button type="button" onclick="document.getElementById('userPublicModal').style.display='none'" style="width:auto;margin:0;padding:6px 12px;background:#334155;color:#fff;border-radius:8px;">⬅ Back</button>
+      <strong style="font-size:15px;">👤 User Profile</strong>
+      <span style="width:50px;"></span>
+    </div>
+    <div id="userPublicBody" class="box" style="text-align:center;padding:20px 14px;"></div>
   </div>
 </body>
 </html>
