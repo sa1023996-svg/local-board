@@ -143,6 +143,29 @@
       max-width: 100%; max-height: 92vh; object-fit: contain; border-radius: 8px;
     }
 
+  
+    /* STEP 2: 3x3 SHOP GRID, SHOP PROFILE PAGE & OLX BUY/SELL */
+    .cat-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 8px; }
+    .full-page-modal {
+      display: none; position: fixed; inset: 0; background: #f1f5f9;
+      z-index: 9800; overflow-y: auto; padding: 14px 14px 80px 14px;
+    }
+    body.dark-mode .full-page-modal { background: #0f172a !important; color: #f1f5f9 !important; }
+    .shop-av-circle {
+      width: 86px; height: 86px; border-radius: 50%; object-fit: cover;
+      border: 3px solid #2563eb; background: #e2e8f0; display: block; margin: 0 auto 6px auto;
+    }
+    .sold-ribbon {
+      position: absolute; inset: 0; background: rgba(15,23,42,0.72);
+      color: #fecaca; font-weight: 900; font-size: 15px; letter-spacing: 1px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .cond-badge {
+      position: absolute; top: 6px; right: 6px; background: #0d9488; color: #fff;
+      font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold;
+    }
+    .job-badge { background: #7c3aed !important; }
+
   </style>
 </head>
 <body>
@@ -1551,6 +1574,318 @@
       }
     };
 
+    // --- STEP 2: 3x3 SHOP CATEGORIES (JOBS), MY SHOP PROFILE PAGE & OLX BUY/SELL TAB ---
+    (function setupStep2() {
+      // A) Update Shop Category Grid to 3x3 (9 items including Jobs)
+      const cg = document.getElementById("shopCatGrid");
+      if (cg) {
+        cg.innerHTML = `
+          <div class="cat-item active" onclick="filterShopCat('All', this)"><span class="cat-ico">🛍️</span>All</div>
+          <div class="cat-item" onclick="filterShopCat('Grocery', this)"><span class="cat-ico">🥦</span>Grocery</div>
+          <div class="cat-item" onclick="filterShopCat('Fashion', this)"><span class="cat-ico">👕</span>Fashion</div>
+          <div class="cat-item" onclick="filterShopCat('Mobiles', this)"><span class="cat-ico">📱</span>Mobiles</div>
+          <div class="cat-item" onclick="filterShopCat('Food', this)"><span class="cat-ico">🍔</span>Food</div>
+          <div class="cat-item" onclick="filterShopCat('Medical', this)"><span class="cat-ico">💊</span>Medical</div>
+          <div class="cat-item" onclick="filterShopCat('Electronics', this)"><span class="cat-ico">🎧</span>Electronics</div>
+          <div class="cat-item" onclick="filterShopCat('Services', this)"><span class="cat-ico">🛠️</span>Services</div>
+          <div class="cat-item" onclick="filterShopCat('Jobs', this)"><span class="cat-ico">💼</span>Jobs</div>`;
+      }
+
+      // B) Hook "My Shop" button to open the new full Shop Profile Page
+      document.querySelectorAll("button").forEach(btn => {
+        if (btn.innerText && btn.innerText.includes("My Shop")) {
+          btn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); openMyShopProfile(); };
+        }
+      });
+
+      // C) Add "Buy/Sell" OLX Tab to Bottom Navigation Bar
+      const navBtns = Array.from(document.querySelectorAll("nav button, .bottom-nav button, div[style*='bottom:0'] button, div[style*='bottom: 0'] button"));
+      const shopsBtn = navBtns.find(b => b.innerText && b.innerText.includes("Shops"));
+      if (shopsBtn && !document.getElementById("navBuySellBtn")) {
+        const navBar = shopsBtn.parentElement;
+        const bsBtn = document.createElement("button");
+        bsBtn.id = "navBuySellBtn";
+        bsBtn.type = "button";
+        bsBtn.className = shopsBtn.className.replace("active", "").trim();
+        bsBtn.innerHTML = "♻️<br>Buy/Sell";
+        bsBtn.style.cssText = shopsBtn.style.cssText;
+        bsBtn.onclick = () => openBuySellTab();
+        shopsBtn.insertAdjacentElement("afterend", bsBtn);
+
+        // Make all bottom nav buttons fit 5 items cleanly
+        Array.from(navBar.children).forEach(b => {
+          b.style.flex = "1";
+          b.style.fontSize = "11px";
+          b.style.padding = "6px 2px";
+          if (b.id !== "navBuySellBtn") {
+            b.addEventListener("click", () => {
+              const v = document.getElementById("buySellView");
+              if (v) v.style.display = "none";
+              bsBtn.classList.remove("active");
+            });
+          }
+        });
+      }
+
+      // D) Create #buySellView container
+      const hv = document.getElementById("homeView");
+      if (hv && !document.getElementById("buySellView")) {
+        const bsv = document.createElement("div");
+        bsv.id = "buySellView";
+        bsv.className = hv.className;
+        bsv.style.display = "none";
+        bsv.innerHTML = `
+          <div class="box" style="background:linear-gradient(135deg,#0f766e,#115e59);color:#fff;border:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <div style="font-weight:bold;font-size:15px;">♻️ Local Buy & Sell (3 KM)</div>
+                <div style="font-size:11px;opacity:0.9;">Buy & sell used or new items nearby</div>
+              </div>
+              <button type="button" onclick="toggleSellForm()" style="width:auto;margin:0;padding:8px 12px;background:#f59e0b;color:#fff;font-weight:bold;border-radius:8px;font-size:12px;">➕ Sell Item</button>
+            </div>
+          </div>
+
+          <div id="sellItemFormBox" class="box" style="display:none;border:2px solid #0d9488;">
+            <div style="font-weight:bold;margin-bottom:8px;color:#0d9488;">📦 List Item for Sale (3 KM)</div>
+            <input type="text" id="olxTitleInp" placeholder="Item Name (e.g. Wooden Table, Redmi Phone)" style="margin-bottom:6px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+              <input type="number" id="olxPriceInp" placeholder="Price in ₹ (e.g. 1500)" style="margin:0;">
+              <input type="text" id="olxAgeInp" placeholder="How old? (e.g. 6 Months)" style="margin:0;">
+            </div>
+            <select id="olxCondInp" style="margin-bottom:6px;">
+              <option value="Like New">✨ Condition: Like New</option>
+              <option value="Good">👍 Condition: Good</option>
+              <option value="Fair">👌 Condition: Fair / Working</option>
+            </select>
+            <input type="file" id="olxPhotoInp" accept="image/*" style="margin-bottom:8px;">
+            <button type="button" onclick="publishOlxItem()" style="background:#0d9488;color:#fff;font-weight:bold;">🚀 Post Item Now</button>
+          </div>
+
+          <input type="text" id="olxSearchInp" oninput="renderBuySell()" placeholder="🔍 Search table, mobile, cycle, fridge..." style="margin-bottom:10px;">
+          <div id="buySellFeed"></div>
+        `;
+        hv.parentElement.appendChild(bsv);
+      }
+    })();
+
+    // Enhance _smartCat for Jobs
+    const _origSmartCat = typeof _smartCat === "function" ? _smartCat : null;
+    _smartCat = function(text, manualCat) {
+      if (manualCat === "Jobs") return "Jobs";
+      const t = ((text || "") + " " + (manualCat || "")).toLowerCase();
+      if (/job|hiring|vacancy|salary|staff|helper|worker|operator|delivery|teacher|tuition|kaam|naukri/.test(t)) return "Jobs";
+      return _origSmartCat ? _origSmartCat(text, manualCat) : (manualCat || "Local Shop");
+    };
+
+    // --- MY SHOP PROFILE FUNCTIONS ---
+    window.openMyShopProfile = () => {
+      const sp = typeof shopProfile !== "undefined" ? shopProfile : {};
+      const up = typeof userProfile !== "undefined" ? userProfile : {};
+      const defaultAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='%23dbeafe'/><text x='50' y='62' font-size='44' text-anchor='middle'>🏪</text></svg>";
+      document.getElementById("spAvatarPreview").src = sp.photoUrl || up.avatarUrl || defaultAvatar;
+      document.getElementById("spNameInp").value = sp.name || "";
+      if (sp.category) document.getElementById("spCatInp").value = sp.category;
+      document.getElementById("spAddrInp").value = sp.address || "";
+      renderMyShopItems();
+      document.getElementById("myShopProfileModal").style.display = "block";
+    };
+
+    window.closeMyShopProfile = () => {
+      document.getElementById("myShopProfileModal").style.display = "none";
+    };
+
+    window.uploadShopAvatar = async () => {
+      const file = document.getElementById("spPhotoFile").files[0];
+      if (!file) return;
+      const url = await uploadToCloudinary(file, "image");
+      if (!url) return alert("Photo upload failed.");
+      shopProfile.photoUrl = url;
+      localStorage.setItem("shopProfile", JSON.stringify(shopProfile));
+      document.getElementById("spAvatarPreview").src = url;
+      alert("✅ Shop photo updated!");
+    };
+
+    window.saveFullShopProfile = () => {
+      const name = document.getElementById("spNameInp").value.trim();
+      if (!name) return alert("Please enter your Shop Name.");
+      shopProfile.name = name;
+      shopProfile.category = document.getElementById("spCatInp").value;
+      shopProfile.address = document.getElementById("spAddrInp").value.trim();
+      if (!shopProfile.photoUrl && typeof userProfile !== "undefined" && userProfile.avatarUrl) {
+        shopProfile.photoUrl = userProfile.avatarUrl;
+      }
+      if (!shopProfile.shopLat && myLat && myLng) {
+        shopProfile.shopLat = myLat;
+        shopProfile.shopLng = myLng;
+      }
+      localStorage.setItem("shopProfile", JSON.stringify(shopProfile));
+      alert("✅ Shop Profile Saved!");
+    };
+
+    window.triggerShopOfferPost = () => {
+      if (!shopProfile || !shopProfile.name) return alert("Please save your Shop Name first!");
+      closeMyShopProfile();
+      const postOfferBtn = Array.from(document.querySelectorAll("button")).find(b => b.innerText && b.innerText.includes("Post Offer"));
+      if (postOfferBtn) postOfferBtn.click();
+    };
+
+    window.toggleJobForm = () => {
+      if (!shopProfile || !shopProfile.name) return alert("Please save your Shop Name first!");
+      const box = document.getElementById("postJobBox");
+      box.style.display = box.style.display === "none" ? "block" : "none";
+    };
+
+    window.publishLocalJob = async () => {
+      const role = document.getElementById("jobRoleInp").value.trim();
+      const salary = document.getElementById("jobSalaryInp").value.trim();
+      const timing = document.getElementById("jobTimingInp").value;
+      const desc = document.getElementById("jobDescInp").value.trim();
+      if (!role) return alert("Please enter Job Role.");
+      const lat = shopProfile.shopLat || myLat;
+      const lng = shopProfile.shopLng || myLng;
+      if (!lat) return alert("Please enable GPS location first.");
+
+      const fullText = `💼 HIRING: ${role} (${timing})${salary ? " | Salary: " + salary : ""}${desc ? " - " + desc : ""}`;
+      await addDoc(collection(db, "posts"), {
+        name: shopProfile.name,
+        text: fullText,
+        type: "Business",
+        category: "Jobs",
+        price: salary || "",
+        imageUrl: shopProfile.photoUrl || "",
+        avatarUrl: shopProfile.photoUrl || "",
+        lat, lng, deviceId,
+        likes: 0,
+        createdAt: Date.now()
+      });
+      document.getElementById("jobRoleInp").value = "";
+      document.getElementById("jobSalaryInp").value = "";
+      document.getElementById("jobDescInp").value = "";
+      document.getElementById("postJobBox").style.display = "none";
+      renderMyShopItems();
+      alert("🎉 Job posted in 3 KM Jobs section!");
+    };
+
+    function renderMyShopItems() {
+      const list = document.getElementById("myShopItemsList");
+      if (!list) return;
+      const mine = allPosts.filter(p => p.deviceId === deviceId && p.type === "Business");
+      if (mine.length === 0) {
+        list.innerHTML = "<div class='box'>No shop offers or jobs posted yet.</div>";
+        return;
+      }
+      list.innerHTML = mine.map(p => `
+        <div class="box" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <div style="font-size:12px;flex:1;">
+            <strong>${p.category === "Jobs" ? "💼 JOB" : "🛍️ OFFER"}:</strong> ${p.text}
+          </div>
+          <button type="button" onclick="deleteMyShopPost('${p.id}')" style="width:auto;margin:0;padding:5px 8px;background:#ef4444;color:#fff;font-size:11px;border-radius:6px;">🗑️ Delete</button>
+        </div>
+      `).join("");
+    }
+
+    window.deleteMyShopPost = async (id) => {
+      if (!confirm("Delete this post?")) return;
+      await deleteDoc(doc(db, "posts", id));
+      setTimeout(renderMyShopItems, 400);
+    };
+
+    // --- OLX BUY/SELL TAB FUNCTIONS ---
+    window.openBuySellTab = () => {
+      ["homeView", "shopsView", "friendsView", "profileView"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = "none";
+      });
+      document.querySelectorAll("nav button, .bottom-nav button").forEach(b => b.classList.remove("active"));
+      const bsBtn = document.getElementById("navBuySellBtn");
+      if (bsBtn) bsBtn.classList.add("active");
+      const bsv = document.getElementById("buySellView");
+      if (bsv) bsv.style.display = "block";
+      renderBuySell();
+    };
+
+    window.toggleSellForm = () => {
+      const box = document.getElementById("sellItemFormBox");
+      box.style.display = box.style.display === "none" ? "block" : "none";
+    };
+
+    window.publishOlxItem = async () => {
+      const title = document.getElementById("olxTitleInp").value.trim();
+      const price = document.getElementById("olxPriceInp").value.trim();
+      const age = document.getElementById("olxAgeInp").value.trim();
+      const cond = document.getElementById("olxCondInp").value;
+      const file = document.getElementById("olxPhotoInp").files[0];
+      if (!title || !price) return alert("Please enter Item Name and Price.");
+      if (!myLat) return alert("Please allow GPS location first.");
+
+      let imgUrl = "";
+      if (file) {
+        imgUrl = await uploadToCloudinary(file, "image");
+      }
+      const sellerName = (typeof userProfile !== "undefined" && userProfile.name) ? userProfile.name : "Local Seller";
+      await addDoc(collection(db, "posts"), {
+        name: sellerName,
+        text: `${title}${age ? " (" + age + " old)" : ""}`,
+        type: "Classified",
+        price: price,
+        itemAge: age,
+        condition: cond,
+        sold: false,
+        imageUrl: imgUrl,
+        avatarUrl: (typeof userProfile !== "undefined" && userProfile.avatarUrl) ? userProfile.avatarUrl : "",
+        lat: myLat,
+        lng: myLng,
+        deviceId,
+        createdAt: Date.now()
+      });
+      document.getElementById("olxTitleInp").value = "";
+      document.getElementById("olxPriceInp").value = "";
+      document.getElementById("olxAgeInp").value = "";
+      document.getElementById("olxPhotoInp").value = "";
+      document.getElementById("sellItemFormBox").style.display = "none";
+      alert("✅ Item listed in 3 KM Buy & Sell!");
+      renderBuySell();
+    };
+
+    window.markOlxSold = async (id) => {
+      await updateDoc(doc(db, "posts", id), { sold: true });
+      setTimeout(renderBuySell, 400);
+    };
+
+    window.renderBuySell = () => {
+      const box = document.getElementById("buySellFeed");
+      if (!box || !myLat) return;
+      const q = (document.getElementById("olxSearchInp")?.value || "").toLowerCase().trim();
+      let items = allPosts.filter(p => p.type === "Classified" && getDistanceKM(myLat, myLng, p.lat, p.lng) <= 3);
+      if (q) items = items.filter(p => (p.text || "").toLowerCase().includes(q) || (p.name || "").toLowerCase().includes(q));
+      if (items.length === 0) {
+        box.innerHTML = "<div class='box'>No items for sale within 3 KM yet. Tap <b>➕ Sell Item</b> to post first!</div>";
+        return;
+      }
+      box.innerHTML = "<div class='noon-grid'>" + items.map(p => {
+        const dist = getDistanceKM(myLat, myLng, p.lat, p.lng).toFixed(1);
+        const safeName = (p.name || "Seller").replace(/'/g, "");const isMine = p.deviceId === deviceId;
+        return `<div class="noon-card">
+          <div class="noon-img-wrap" onclick="openFullImage('${p.imageUrl || ""}')">
+            ${p.imageUrl ? `<img src="${p.imageUrl}" class="noon-img" loading="lazy">` : `<span style="font-size:40px;">📦</span>`}
+            ${p.condition ? `<span class="cond-badge">${p.condition}</span>` : ""}
+            ${p.sold ? `<div class="sold-ribbon">SOLD OUT</div>` : ""}
+          </div>
+          <div class="noon-body">
+            <div class="noon-title">${p.text}</div>
+            <div class="noon-price">₹${p.price}</div>
+            <div class="noon-shop">👤 ${p.name} • ${dist} km</div>
+            <div class="noon-actions">
+              ${isMine
+                ? `${!p.sold ? `<button style="background:#16a34a;color:#fff;" onclick="markOlxSold('${p.id}')">✅ Sold</button>` : ""}<button style="background:#ef4444;color:#fff;" onclick="deleteMyShopPost('${p.id}').then(renderBuySell)">🗑️</button>`
+                : `<button style="background:#0d9488;color:#fff;" onclick="openChatWith('${p.deviceId}', '${safeName}')">💬 Buy / Chat</button>`
+              }
+            </div>
+          </div>
+        </div>`;
+      }).join("") + "</div>";
+    };
+
     // Initialize everything cleanly
     applyLang();
     loadProfileUI();
@@ -1630,6 +1965,55 @@
   <div id="fullImgModal" class="full-img-modal" onclick="closeFullImage()">
     <button type="button" onclick="closeFullImage()" style="position:absolute;top:14px;right:14px;width:38px;height:38px;margin:0;padding:0;border-radius:50%;background:rgba(255,255,255,0.2);color:#fff;font-size:18px;border:none;cursor:pointer;">✖</button>
     <img id="fullImgSrc" src="" onclick="event.stopPropagation()">
+  </div>
+  <!-- MY SHOP FULL PROFILE MODAL -->
+  <div id="myShopProfileModal" class="full-page-modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <button type="button" onclick="closeMyShopProfile()" style="width:auto;margin:0;padding:6px 12px;background:#334155;color:#fff;border-radius:8px;">⬅ Back</button>
+      <strong style="font-size:16px;">🏪 My Shop Profile</strong>
+      <button type="button" onclick="updateFixedShopLocation()" style="width:auto;margin:0;padding:6px 10px;background:#0284c7;color:#fff;border-radius:8px;font-size:11px;">📍 Pin Spot</button>
+    </div>
+
+    <div class="box" style="text-align:center;">
+      <img id="spAvatarPreview" src="" class="shop-av-circle" onclick="document.getElementById('spPhotoFile').click()" style="cursor:pointer;">
+      <div onclick="document.getElementById('spPhotoFile').click()" style="color:#2563eb;font-weight:bold;font-size:12px;cursor:pointer;margin-bottom:10px;">📷 Select your shop photo</div>
+      <input type="file" id="spPhotoFile" accept="image/*" style="display:none;" onchange="uploadShopAvatar()">
+
+      <input type="text" id="spNameInp" placeholder="Shop Name (e.g. Saikh Kirana Store)" style="margin-bottom:8px;">
+      <select id="spCatInp" style="margin-bottom:8px;">
+        <option value="Grocery">🥦 Grocery / Kirana</option>
+        <option value="Fashion">👕 Fashion / Kapda</option>
+        <option value="Mobiles">📱 Mobiles & Recharge</option>
+        <option value="Food">🍔 Food / Hotel / Sweets</option>
+        <option value="Medical">💊 Medical / Clinic</option>
+        <option value="Electronics">🎧 Electronics</option>
+        <option value="Services">🛠️ Services / Repair</option>
+      </select>
+      <input type="text" id="spAddrInp" placeholder="Shop Landmark / Address (e.g. Near Main Chowk)" style="margin-bottom:8px;">
+      <button type="button" onclick="saveFullShopProfile()" style="background:#16a34a;color:#fff;font-weight:bold;">💾 Save Shop Details</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0;">
+      <button type="button" onclick="triggerShopOfferPost()" style="background:#f59e0b;color:#fff;font-weight:bold;margin:0;padding:10px;">➕ Post Offer / Item</button>
+      <button type="button" onclick="toggleJobForm()" style="background:#7c3aed;color:#fff;font-weight:bold;margin:0;padding:10px;">💼 Post Local Job</button>
+    </div>
+
+    <!-- POST LOCAL JOB BOX -->
+    <div id="postJobBox" class="box" style="display:none;border:2px solid #7c3aed;">
+      <div style="font-weight:bold;margin-bottom:8px;color:#7c3aed;">💼 Post a Local Job (3 KM)</div>
+      <input type="text" id="jobRoleInp" placeholder="Job Role (e.g. Shop Helper, Computer Operator)" style="margin-bottom:6px;">
+      <input type="text" id="jobSalaryInp" placeholder="Monthly Salary (e.g. ₹8,000 - ₹10,000)" style="margin-bottom:6px;">
+      <select id="jobTimingInp" style="margin-bottom:6px;">
+        <option value="Full Time">Full Time</option>
+        <option value="Part Time">Part Time (Students Welcome)</option>
+        <option value="Morning / Evening Shift">Morning / Evening Shift</option>
+      </select>
+      <textarea id="jobDescInp" rows="2" placeholder="Extra details (Timing, qualification, etc.)" style="margin-bottom:8px;"></textarea>
+      <button type="button" onclick="publishLocalJob()" style="background:#7c3aed;color:#fff;font-weight:bold;">🚀 Publish Job Opening</button>
+    </div>
+
+    <div style="font-weight:bold;margin:12px 0 6px 0;">📦 My Shop Items & Jobs</div>
+    <div id="myShopItemsList"></div>
   </div>
 </body>
 </html>
