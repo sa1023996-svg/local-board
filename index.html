@@ -378,6 +378,50 @@
       border: 2px solid #22c55e; font-size: 15px; margin-bottom: 3px;
     }
 
+  
+    /* STEP 5: EMAIL AUTH & FEMALE AUTO-PRIVACY MODAL */
+    .auth-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.92);
+      z-index: 10300; overflow-y: auto; padding: 20px 14px;
+      align-items: center; justify-content: center;
+    }
+    .auth-card {
+      width: 100%; max-width: 400px; background: #fff; color: #0f172a;
+      border-radius: 16px; padding: 18px; box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+      margin: auto;
+    }
+    body.dark-mode .auth-card {
+      background: #1e293b !important; color: #f1f5f9 !important; border: 1px solid #334155;
+    }
+    .auth-tabs {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px;
+    }
+    .auth-tab-btn {
+      padding: 8px !important; margin: 0 !important; border-radius: 8px !important;
+      font-weight: bold; font-size: 13px !important;
+      background: #e2e8f0 !important; color: #334155 !important; border: none !important;
+    }
+    .auth-tab-btn.active {
+      background: #2563eb !important; color: #fff !important;
+    }
+    .gender-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0 10px 0;
+    }
+    .gender-btn {
+      padding: 9px !important; margin: 0 !important; border-radius: 10px !important;
+      font-weight: bold; font-size: 13px !important; border: 2px solid #cbd5e1 !important;
+      background: #f8fafc !important; color: #1e293b !important;
+    }
+    body.dark-mode .gender-btn {
+      background: #0f172a !important; color: #e2e8f0 !important; border-color: #475569 !important;
+    }
+    .gender-btn.selected-male {
+      border-color: #2563eb !important; background: #dbeafe !important; color: #1e3a8a !important;
+    }
+    .gender-btn.selected-female {
+      border-color: #db2777 !important; background: #fce7f3 !important; color: #831843 !important;
+    }
+
   </style>
 </head>
 <body>
@@ -3190,6 +3234,212 @@
       }
     })();
 
+    // --- STEP 5: FIREBASE EMAIL AUTH, FEMALE AUTO-PRIVACY & SINGLE ACTIVE SESSION ---
+    let authMode = "login";
+    let selectedGender = "";
+    let fbAuthMod = null;
+    let fbAuthInstance = null;
+
+    (async function initSwiftEmailAuth() {
+      try {
+        fbAuthMod = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+        fbAuthInstance = fbAuthMod.getAuth();
+
+        fbAuthMod.onAuthStateChanged(fbAuthInstance, async (user) => {
+          updateAccountCardUI(user);
+          if (user) {
+            // Single Active Session Listener: auto-logout if logged in on another phone
+            onSnapshot(doc(db, "auth_accounts", user.uid), (snap) => {
+              if (!snap.exists()) return;
+              const data = snap.data();
+              const localTok = localStorage.getItem("swiftcart_session_token");
+              if (data.activeSessionToken && localTok && data.activeSessionToken !== localTok) {
+                alert("⚠️ Your SwiftCart account was just logged in on another phone. Logging out from this device for security.");
+                fbAuthMod.signOut(fbAuthInstance);
+                localStorage.removeItem("swiftcart_session_token");
+              }
+            });
+          }
+        });
+      } catch (e) {
+        console.warn("Auth module load:", e);
+      }
+    })();
+
+    window.openSwiftAuthModal = (mode) => {
+      switchAuthMode(mode || "login");
+      document.getElementById("swiftAuthModal").style.display = "flex";
+    };
+
+    window.closeSwiftAuthModal = () => {
+      document.getElementById("swiftAuthModal").style.display = "none";
+      localStorage.setItem("swiftcart_auth_skipped", "1");
+    };
+
+    window.switchAuthMode = (mode) => {
+      authMode = mode;
+      document.getElementById("authTabLogin").classList.toggle("active", mode === "login");
+      document.getElementById("authTabSignup").classList.toggle("active", mode === "signup");
+      document.getElementById("signupExtraFields").style.display = (mode === "signup") ? "block" : "none";
+      document.getElementById("authSubmitBtn").innerText = (mode === "signup") ? "✨ Create Account" : "🚀 Login Now";
+    };
+
+    window.selectSignupGender = (g) => {
+      selectedGender = g;
+      document.getElementById("genMaleBtn").className = "gender-btn" + (g === "male" ? " selected-male" : "");
+      document.getElementById("genFemaleBtn").className = "gender-btn" + (g === "female" ? " selected-female" : "");
+      document.getElementById("femalePrivacyHint").style.display = (g === "female") ? "block" : "none";
+    };
+
+    window.submitSwiftAuth = async () => {
+      if (!fbAuthMod || !fbAuthInstance) return alert("Auth service still loading, please try again in 2 seconds.");
+      const email = (document.getElementById("authEmailInp").value || "").trim();
+      const pass = (document.getElementById("authPassInp").value || "").trim();
+      if (!email || !pass) return alert("Please enter Email and Password.");
+
+      const sessionToken = "sess_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+
+      try {
+        if (authMode === "signup") {
+          // Anti-fake filter: max 2 new sign-ups allowed per physical phone
+          const createdCount = parseInt(localStorage.getItem("swiftcart_created_accounts") || "0", 10);
+          if (createdCount >= 2) {
+            return alert("🛑 Anti-Fake Limit: Maximum 2 new accounts allowed from one phone. Please login with your existing Email.");
+          }
+          const fullName = (document.getElementById("authNameInp").value || "").trim();
+          if (!fullName) return alert("Please enter your Name.");
+          if (!selectedGender) return alert("Please select Male or Female (For your privacy).");
+
+          const cred = await fbAuthMod.createUserWithEmailAndPassword(fbAuthInstance, email, pass);
+          try { await fbAuthMod.sendEmailVerification(cred.user); } catch (ve) {}
+
+          localStorage.setItem("swiftcart_created_accounts", String(createdCount + 1));
+          localStorage.setItem("swiftcart_session_token", sessionToken);
+
+          // Auto-apply maximum privacy if Female
+          const isFemale = selectedGender === "female";
+          privacySettings.profileLock = isFemale ? true : false;
+          privacySettings.unknownMsg = isFemale ? false : true;
+          savePrivacySettings();
+
+          if (typeof userProfile !== "undefined") {
+            userProfile.name = fullName;
+            userProfile.gender = selectedGender;
+            localStorage.setItem("userProfile", JSON.stringify(userProfile));
+          }
+
+          await setDoc(doc(db, "auth_accounts", cred.user.uid), {
+            uid: cred.user.uid,
+            email,
+            name: fullName,
+            gender: selectedGender,
+            deviceId,
+            activeSessionToken: sessionToken,
+            userProfile: typeof userProfile !== "undefined" ? userProfile : { name: fullName },
+            shopProfile: typeof shopProfile !== "undefined" ? shopProfile : {},
+            privacySettings,
+            createdAt: Date.now()
+          });
+
+          document.getElementById("swiftAuthModal").style.display = "none";
+          alert(isFemale
+            ? "✅ Account created! 🔒 Profile Lock & Unknown Message Block are automatically ON for your privacy."
+            : "✅ SwiftCart Account created! Verification link sent to your email.");
+        } else {
+          const cred = await fbAuthMod.signInWithEmailAndPassword(fbAuthInstance, email, pass);
+          localStorage.setItem("swiftcart_session_token", sessionToken);
+
+          // Restore user profile, shop & privacy from cloud (for lost/new phone recovery)
+          const accSnap = await getDoc(doc(db, "auth_accounts", cred.user.uid));
+          if (accSnap.exists()) {
+            const d = accSnap.data();
+            if (d.userProfile && typeof userProfile !== "undefined") {
+              Object.assign(userProfile, d.userProfile);
+              localStorage.setItem("userProfile", JSON.stringify(userProfile));
+            }
+            if (d.shopProfile && typeof shopProfile !== "undefined") {
+              Object.assign(shopProfile, d.shopProfile);
+              localStorage.setItem("shopProfile", JSON.stringify(shopProfile));
+            }
+            if (d.privacySettings) {
+              Object.assign(privacySettings, d.privacySettings);
+              savePrivacySettings();
+            }
+          }
+
+          await setDoc(doc(db, "auth_accounts", cred.user.uid), {
+            activeSessionToken: sessionToken,
+            lastLoginAt: Date.now()
+          }, { merge: true });
+
+          document.getElementById("swiftAuthModal").style.display = "none";
+          alert("✅ Welcome back! Your profile & shop data are synced on this device.");
+        }
+      } catch (err) {
+        alert("⚠️ " + (err.message || "Authentication failed. Make sure Email/Password is enabled in Firebase."));
+      }
+    };
+
+    window.resetSwiftPassword = async () => {
+      if (!fbAuthMod || !fbAuthInstance) return;
+      const email = (document.getElementById("authEmailInp").value || "").trim();
+      if (!email) return alert("Please type your Email ID in the box above first, then tap Forgot Password.");
+      try {
+        await fbAuthMod.sendPasswordResetEmail(fbAuthInstance, email);
+        alert("📧 Password reset link sent to " + email + "! Check your inbox/spam folder.");
+      } catch (e) {
+        alert("⚠️ " + e.message);
+      }
+    };
+
+    window.logoutSwiftAccount = async () => {
+      if (fbAuthMod && fbAuthInstance) {
+        await fbAuthMod.signOut(fbAuthInstance);
+        localStorage.removeItem("swiftcart_session_token");
+        alert("Logged out successfully.");
+      }
+    };
+
+    function updateAccountCardUI(user) {
+      const pv = document.getElementById("profileView");
+      if (!pv) return;
+      let card = document.getElementById("swiftAccountSyncCard");
+      if (!card) {
+        card = document.createElement("div");
+        card.id = "swiftAccountSyncCard";
+        card.className = "box";
+        pv.prepend(card);
+      }
+      if (user) {
+        card.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <div>
+              <div style="font-weight:bold;font-size:13px;color:#16a34a;">✅ Account Synced (Backup ON)</div>
+              <div style="font-size:11px;opacity:0.8;">${user.email}</div>
+            </div>
+            <button type="button" onclick="logoutSwiftAccount()" style="width:auto;margin:0;padding:6px 10px;background:#ef4444;color:#fff;border-radius:8px;font-size:11px;">Logout</button>
+          </div>
+        `;
+      } else {
+        card.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <div>
+              <div style="font-weight:bold;font-size:13px;">🔑 Backup & Account Login</div>
+              <div style="font-size:11px;opacity:0.8;">Login with Email to protect your Shop & Profile</div>
+            </div>
+            <button type="button" onclick="openSwiftAuthModal('login')" style="width:auto;margin:0;padding:7px 12px;background:#2563eb;color:#fff;border-radius:8px;font-size:12px;font-weight:bold;">Login / Sign Up</button>
+          </div>
+        `;
+      }
+    }
+
+    // Show Login/Signup screen automatically on first visit if not logged in
+    setTimeout(() => {
+      if (fbAuthInstance && !fbAuthInstance.currentUser && !localStorage.getItem("swiftcart_auth_skipped")) {
+        openSwiftAuthModal("signup");
+      }
+    }, 1500);
+
     // Initialize everything cleanly
     applyLang();
     loadProfileUI();
@@ -3403,6 +3653,46 @@
     <div style="display:flex;gap:6px;">
       <input type="text" id="liveTableChatInp" placeholder="Type in Live Table group chat..." style="margin:0;flex:1;">
       <button type="button" onclick="sendLiveTableChat()" style="width:auto;margin:0;padding:0 16px;background:#2563eb;color:#fff;font-weight:bold;border-radius:8px;">Send</button>
+    </div>
+  </div>
+  <!-- EMAIL LOGIN / SIGN-UP & PRIVACY MODAL -->
+  <div id="swiftAuthModal" class="auth-overlay">
+    <div class="auth-card">
+      <div style="text-align:center;margin-bottom:12px;">
+        <div style="font-size:28px;">🛍️</div>
+        <h3 style="margin:4px 0 2px 0;">Welcome to SwiftCart</h3>
+        <div style="font-size:12px;opacity:0.8;">3 KM Local Market, Jobs & Safe Community</div>
+      </div>
+
+      <div class="auth-tabs">
+        <button type="button" id="authTabLogin" class="auth-tab-btn active" onclick="switchAuthMode('login')">🔑 Login</button>
+        <button type="button" id="authTabSignup" class="auth-tab-btn" onclick="switchAuthMode('signup')">✨ Create Account</button>
+      </div>
+
+      <!-- SIGN UP EXTRA FIELDS -->
+      <div id="signupExtraFields" style="display:none;">
+        <input type="text" id="authNameInp" placeholder="Your Full Name" style="margin-bottom:8px;">
+        <div style="background:rgba(219,39,119,0.08);border:1px solid rgba(219,39,119,0.3);padding:8px 10px;border-radius:10px;margin-bottom:8px;">
+          <div style="font-size:12px;font-weight:bold;color:#db2777;">🛡️ For your privacy (Select Gender):</div>
+          <div class="gender-grid">
+            <button type="button" id="genMaleBtn" class="gender-btn" onclick="selectSignupGender('male')">👨 Male</button>
+            <button type="button" id="genFemaleBtn" class="gender-btn" onclick="selectSignupGender('female')">👩 Female</button>
+          </div>
+          <div id="femalePrivacyHint" style="display:none;font-size:11px;color:#be185d;font-weight:bold;">
+            🔒 Auto-Safety ON: Profile Lock & Unknown Message Block will turn ON automatically for your safety.
+          </div>
+        </div>
+      </div>
+
+      <input type="email" id="authEmailInp" placeholder="Enter Email ID (e.g. name@gmail.com)" style="margin-bottom:8px;">
+      <input type="password" id="authPassInp" placeholder="Password (min 6 characters)" style="margin-bottom:10px;">
+
+      <button type="button" id="authSubmitBtn" onclick="submitSwiftAuth()" style="background:#2563eb;color:#fff;font-weight:bold;padding:11px;border-radius:10px;">🚀 Login Now</button>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:12px;">
+        <span onclick="resetSwiftPassword()" style="color:#2563eb;cursor:pointer;font-weight:bold;">Forgot Password?</span>
+        <span onclick="closeSwiftAuthModal()" style="opacity:0.75;cursor:pointer;">Skip for now ✖</span>
+      </div>
     </div>
   </div>
 </body>
