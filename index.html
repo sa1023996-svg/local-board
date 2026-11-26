@@ -422,7 +422,35 @@
       border-color: #db2777 !important; background: #fce7f3 !important; color: #831843 !important;
     }
 
+  
+    /* STEP 6: ONE-TAP INSTALL APP BANNER */
+    .pwa-install-bar {
+      display: none; align-items: center; justify-content: space-between; gap: 8px;
+      background: linear-gradient(135deg, #16a34a, #0d9488); color: #fff;
+      padding: 9px 12px; border-radius: 12px; margin: 8px 0 10px 0;
+      box-shadow: 0 4px 12px rgba(22,163,74,0.3);
+    }
+    .pwa-install-bar * { color: #fff !important; }
+
+  
+    /* HIDE BOTTOM NAV & FLOATING ICON ON CHAT, SETTINGS & FULL-SCREEN MODALS */
+    body.hide-bottom-nav #swiftBottomNav,
+    body.hide-bottom-nav .dark-toggle-btn {
+      display: none !important;
+    }
+    /* Remove extra top padding when bottom bar is hidden */
+    body.hide-bottom-nav #friendsView {
+      padding-bottom: 14px !important;
+    }
+
   </style>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="apple-touch-icon" href="logo.png">
+  <meta name="theme-color" content="#1d4ed8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SwiftCart">
 </head>
 <body>
   <div class="container">
@@ -3439,6 +3467,416 @@
         openSwiftAuthModal("signup");
       }
     }, 1500);
+
+    // --- STEP 6: PWA SERVICE WORKER, REAL LOGO & ONE-TAP INSTALL APP ---
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js").catch(() => {});
+      });
+    }
+
+    let deferredInstallPrompt = null;
+
+    (function setupSwiftCartLogoAndInstall() {
+      // Replace plain 'S' icon box in top banner with actual logo.png
+      document.querySelectorAll("div, span").forEach(el => {
+        if (el.children.length === 0 && (el.innerText || "").trim() === "S" && el.offsetWidth >= 28 && el.offsetWidth <= 65) {
+          el.style.padding = "0";
+          el.style.overflow = "hidden";
+          el.style.background = "transparent";
+          el.innerHTML = `<img src="logo.png" alt="SwiftCart" style="width:100%;height:100%;object-fit:cover;border-radius:10px;display:block;">`;
+        }
+      });
+
+      // Create One-Tap Install App Banner for non-technical users
+      const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+      if (isStandalone || localStorage.getItem("swiftcart_install_dismissed") === "1") return;
+
+      const targetContainer = document.getElementById("homeView") || document.body;
+      if (!document.getElementById("pwaInstallBanner")) {
+        const bar = document.createElement("div");
+        bar.id = "pwaInstallBanner";
+        bar.className = "pwa-install-bar";
+        bar.style.display = "flex";
+        bar.innerHTML = `
+          <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+            <img src="logo.png" style="width:36px;height:36px;border-radius:8px;object-fit:cover;background:#fff;flex-shrink:0;" onerror="this.style.display='none'">
+            <div style="min-width:0;">
+              <div style="font-weight:bold;font-size:13px;">📲 Install SwiftCart App</div>
+              <div style="font-size:11px;opacity:0.92;">One-tap access on your Home Screen</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+            <button type="button" onclick="triggerSwiftInstall()" style="width:auto;margin:0;padding:7px 12px;background:#fff !important;color:#0f766e !important;font-weight:bold;border-radius:8px;font-size:12px;border:none;">Install</button>
+            <button type="button" onclick="dismissSwiftInstall()" style="width:auto;margin:0;padding:4px 7px;background:rgba(0,0,0,0.2) !important;border:none;border-radius:6px;font-size:12px;">✖</button>
+          </div>
+        `;
+        targetContainer.prepend(bar);
+      }
+    })();
+
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      const bar = document.getElementById("pwaInstallBanner");
+      if (bar) bar.style.display = "flex";
+    });
+
+    window.triggerSwiftInstall = async () => {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        const choice = await deferredInstallPrompt.userChoice;
+        if (choice && choice.outcome === "accepted") {
+          const bar = document.getElementById("pwaInstallBanner");
+          if (bar) bar.style.display = "none";
+        }
+        deferredInstallPrompt = null;
+      } else {
+        alert("📲 To install SwiftCart App on your phone:\n\n1. Tap the 3-dots menu (⋮) at top-right of Chrome (or Share button on iPhone).\n2. Tap 'Install App' or 'Add to Home Screen'.\n\nSwiftCart will appear with your blue 'S' icon like a real Play Store app!");
+      }
+    };
+
+    window.dismissSwiftInstall = () => {
+      localStorage.setItem("swiftcart_install_dismissed", "1");
+      const bar = document.getElementById("pwaInstallBanner");
+      if (bar) bar.style.display = "none";
+    };
+
+    // --- NAVIGATION, REFRESH PERSISTENCE, MOBILE BACK BUTTON & BOTTOM BAR CONTROL ---
+    let currentMainTab = "home";
+    let chatReturnTab = "friends";
+    let isHandlingPopState = false;
+
+    function getBottomNavEl() {
+      let nav = document.getElementById("swiftBottomNav");
+      if (nav) return nav;
+      const btns = Array.from(document.querySelectorAll("button"));
+      const homeBtn = btns.find(b => (b.innerText || "").includes("Home") && b.closest("nav, .bottom-nav, div[style*='bottom']"));
+      if (homeBtn && homeBtn.parentElement) {
+        homeBtn.parentElement.id = "swiftBottomNav";
+        return homeBtn.parentElement;
+      }
+      return null;
+    }
+
+    function setBottomBarVisible(visible) {
+      getBottomNavEl();
+      if (visible) {
+        document.body.classList.remove("hide-bottom-nav");
+      } else {
+        document.body.classList.add("hide-bottom-nav");
+      }
+    }
+
+    function pushSubScreenState(subName) {
+      if (isHandlingPopState) return;
+      try {
+        history.pushState({ tab: currentMainTab, sub: subName }, "", "#" + currentMainTab + "/" + subName);
+      } catch (e) {}
+    }
+
+    function switchToMainTab(tab, pushHistory = true) {
+      tab = (tab || "home").toLowerCase();
+      if (!["home", "shops", "buysell", "friends", "profile"].includes(tab)) tab = "home";
+
+      const prevTab = currentMainTab;
+      currentMainTab = tab;
+      sessionStorage.setItem("swiftcart_active_tab", tab);
+      setBottomBarVisible(true);
+
+      // Update history stack so: Non-Home -> Back -> Home -> Back -> Exit App
+      if (!isHandlingPopState) {
+        try {
+          if (tab === "home") {
+            history.replaceState({ tab: "home", sub: null }, "", "#home");
+          } else if (pushHistory && prevTab === "home") {
+            history.pushState({ tab: tab, sub: null }, "", "#" + tab);
+          } else {
+            history.replaceState({ tab: tab, sub: null }, "", "#" + tab);
+          }
+        } catch (e) {}
+      }
+
+      // Activate the selected view
+      const nav = getBottomNavEl();
+      const navBtns = nav ? Array.from(nav.querySelectorAll("button")) : [];
+
+      if (tab === "buysell") {
+        if (typeof window.openBuySellTab === "function") window.openBuySellTab();
+        return;
+      }
+
+      const bsv = document.getElementById("buySellView");
+      if (bsv) bsv.style.display = "none";
+
+      const labelMap = { home: "Home", shops: "Shops", friends: "Friends", profile: "Profile" };
+      const targetWord = labelMap[tab];
+      const matchBtn = navBtns.find(b => (b.innerText || "").includes(targetWord));
+      if (matchBtn) {
+        matchBtn.dataset.programmaticNav = "1";
+        matchBtn.click();
+        delete matchBtn.dataset.programmaticNav;
+      }
+      if (tab === "friends" && typeof window.switchInboxFolder === "function") {
+        window.switchInboxFolder(activeInboxFolder || "personal");
+      }
+    }
+
+    // Clean up duplicate "Chat / Member ... Back" header below WhatsApp green banner
+    const _prevWaHeader = typeof injectWhatsAppChatHeader === "function" ? injectWhatsAppChatHeader : null;
+    injectWhatsAppChatHeader = function() {
+      if (_prevWaHeader) _prevWaHeader();
+      const fv = document.getElementById("friendsView");
+      if (!fv) return;
+      const chatPanel = typeof findChatPanelEl === "function" ? findChatPanelEl() : null;
+      if (!chatPanel) return;
+
+      Array.from(chatPanel.children).forEach(ch => {
+        if (ch.id === "waRichHeader") return;
+        const txt = (ch.innerText || "").trim();
+        const hasBack = Array.from(ch.querySelectorAll("button")).some(b => /back/i.test(b.innerText || ""));
+        if (hasBack || /^(Chat|Member)\s*(Back)?$/i.test(txt)) {
+          ch.style.display = "none";
+        }
+      });
+
+      // Make sure the green WhatsApp banner back arrow uses native back handler
+      const hdr = document.getElementById("waRichHeader");
+      if (hdr) {
+        const backArrowBtn = hdr.querySelector("button");
+        if (backArrowBtn) {
+          backArrowBtn.onclick = (e) => {
+            e.stopPropagation();
+            triggerAppBack();
+          };
+        }
+      }
+    };
+
+    // Wrap openChatWith so it hides bottom bar, remembers return tab, and pushes sub-state
+    const _prevOpenChatNav = window.openChatWith;
+    window.openChatWith = function(peerId, peerName, forceType) {
+      if (currentMainTab !== "friends") {
+        chatReturnTab = currentMainTab;
+      } else {
+        chatReturnTab = "friends";
+      }
+      if (_prevOpenChatNav) _prevOpenChatNav(peerId, peerName, forceType);
+      setBottomBarVisible(false);
+      pushSubScreenState("chat");
+      setTimeout(injectWhatsAppChatHeader, 50);
+    };
+
+    // Wrap modal openers so bottom bar hides & mobile Back closes them cleanly
+    [
+      ["openMyShopProfile", "myshop"],
+      ["openFriendsGroupModal", "group"],
+      ["openLiveAudioTable", "livetable"],
+      ["openUserPublicProfile", "userprofile"],
+      ["openSwiftAuthModal", "auth"],
+      ["openFullImage", "fullimg"]
+    ].forEach(([fnName, subKey]) => {
+      if (typeof window[fnName] === "function") {
+        const origFn = window[fnName];
+        window[fnName] = function(...args) {
+          const res = origFn.apply(this, args);
+          setBottomBarVisible(false);
+          pushSubScreenState(subKey);
+          return res;
+        };
+      }
+    });
+
+    // Restore bottom bar whenever modals are closed via UI buttons
+    [
+      ["closeMyShopProfile"],
+      ["leaveLiveAudioTable"],
+      ["closeSwiftAuthModal"],
+      ["closeFullImage"]
+    ].forEach(([fnName]) => {
+      if (typeof window[fnName] === "function") {
+        const origClose = window[fnName];
+        window[fnName] = function(...args) {
+          const res = origClose.apply(this, args);
+          setBottomBarVisible(true);
+          return res;
+        };
+      }
+    });
+
+    // Also add a dedicated Settings sub-view inside Profile that hides bottom bar & supports Back
+    (function setupProfileSettingsSubView() {
+      const pv = document.getElementById("profileView");
+      if (!pv || document.getElementById("swiftSettingsBtn")) return;
+
+      const privCard = document.getElementById("profilePrivacyCard");
+      const targetAnchor = privCard || pv.firstElementChild;
+
+      // Wrap privacy/settings cards into a clean Settings sub-panel
+      const settingsPanel = document.createElement("div");
+      settingsPanel.id = "swiftSettingsSubPanel";
+      settingsPanel.style.display = "none";
+      settingsPanel.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+          <button type="button" onclick="triggerAppBack()" style="width:auto;margin:0;padding:6px 12px;background:#334155;color:#fff;border-radius:8px;">⬅ Back</button>
+          <strong style="font-size:16px;">⚙️ App & Privacy Settings</strong>
+        </div>
+      `;
+      if (privCard) settingsPanel.appendChild(privCard);
+      const syncCard = document.getElementById("swiftAccountSyncCard");
+      if (syncCard) settingsPanel.appendChild(syncCard);
+
+      const openSettingsRow = document.createElement("div");
+      openSettingsRow.id = "swiftSettingsBtn";
+      openSettingsRow.className = "box";
+      openSettingsRow.style.cssText = "display:flex;justify-content:space-between;align-items:center;cursor:pointer;margin-bottom:10px;";
+      openSettingsRow.onclick = () => {
+        Array.from(pv.children).forEach(ch => {
+          ch.style.display = (ch.id === "swiftSettingsSubPanel") ? "block" : "none";
+        });
+        setBottomBarVisible(false);
+        pushSubScreenState("settings");
+      };
+      openSettingsRow.innerHTML = `
+        <div style="font-weight:bold;font-size:14px;">⚙️ Account, Privacy & App Settings</div>
+        <span style="font-size:13px;opacity:0.8;">Open ➔</span>
+      `;
+      pv.prepend(openSettingsRow);
+      pv.prepend(settingsPanel);
+    })();
+
+    function closeProfileSettingsSubView() {
+      const pv = document.getElementById("profileView");
+      const sp = document.getElementById("swiftSettingsSubPanel");
+      if (!pv || !sp || sp.style.display === "none") return false;
+      Array.from(pv.children).forEach(ch => {
+        ch.style.display = (ch.id === "swiftSettingsSubPanel") ? "none" : "";
+      });
+      setBottomBarVisible(true);
+      return true;
+    }
+
+    function closeOpenChatScreen() {
+      const fv = document.getElementById("friendsView");
+      const chatPanel = typeof findChatPanelEl === "function" ? findChatPanelEl() : null;
+      const isChatOpen = fv && fv.style.display !== "none" && chatPanel && chatPanel.style.display !== "none";
+      if (!isChatOpen) return false;
+
+      chatPanel.style.display = "none";
+      setBottomBarVisible(true);
+      if (chatReturnTab && chatReturnTab !== "friends") {
+        switchToMainTab(chatReturnTab, false);
+      } else if (typeof window.switchInboxFolder === "function") {
+        window.switchInboxFolder(activeInboxFolder || "personal");
+      }
+      return true;
+    }
+
+    function closeAnyOpenModal() {
+      const modalIds = [
+        "fullImgModal",
+        "myShopProfileModal",
+        "friendsGroupModal",
+        "userPublicModal",
+        "swiftAuthModal"
+      ];
+      for (const id of modalIds) {
+        const el = document.getElementById(id);
+        if (el && el.style.display && el.style.display !== "none") {
+          el.style.display = "none";
+          setBottomBarVisible(true);
+          return true;
+        }
+      }
+      const lt = document.getElementById("liveTableModal");
+      if (lt && lt.style.display && lt.style.display !== "none") {
+        if (typeof window.leaveLiveAudioTable === "function") window.leaveLiveAudioTable();
+        else lt.style.display = "none";
+        setBottomBarVisible(true);
+        return true;
+      }
+      const wc = document.getElementById("webrtcCallModal");
+      if (wc && wc.style.display && wc.style.display !== "none") {
+        if (typeof window.endWebrtcCall === "function") window.endWebrtcCall();
+        return true;
+      }
+      return false;
+    }
+
+    window.triggerAppBack = () => {
+      if (history.state && history.state.sub) {
+        history.back();
+      } else {
+        handleBackAction({ tab: currentMainTab, sub: null });
+      }
+    };
+
+    function handleBackAction(targetState) {
+      // 1) Close any open modal / full-screen photo / call
+      if (closeAnyOpenModal()) return;
+      // 2) Close WhatsApp chat screen & restore bottom bar
+      if (closeOpenChatScreen()) return;
+      // 3) Close Profile Settings sub-view & restore bottom bar
+      if (closeProfileSettingsSubView()) return;
+
+      // 4) Navigate between main tabs: Non-Home -> Home -> Exit App
+      const nextTab = (targetState && targetState.tab) ? targetState.tab : "home";
+      if (currentMainTab !== "home") {
+        switchToMainTab(nextTab, false);
+      }
+    }
+
+    window.addEventListener("popstate", (event) => {
+      isHandlingPopState = true;
+      try {
+        handleBackAction(event.state);
+      } finally {
+        setTimeout(() => { isHandlingPopState = false; }, 30);
+      }
+    });
+
+    // Listen to manual bottom bar taps to track tab state & history cleanly
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn || btn.dataset.programmaticNav === "1") return;
+      const nav = getBottomNavEl();
+      if (!nav || !nav.contains(btn)) return;
+
+      const txt = (btn.innerText || "").trim();
+      let clickedTab = "home";
+      if (txt.includes("Shops")) clickedTab = "shops";
+      else if (txt.includes("Buy/Sell")) clickedTab = "buysell";
+      else if (txt.includes("Friends")) clickedTab = "friends";
+      else if (txt.includes("Profile")) clickedTab = "profile";
+
+      const prevTab = currentMainTab;
+      currentMainTab = clickedTab;
+      sessionStorage.setItem("swiftcart_active_tab", clickedTab);
+      setBottomBarVisible(true);
+
+      try {
+        if (clickedTab === "home") {
+          history.replaceState({ tab: "home", sub: null }, "", "#home");
+        } else if (prevTab === "home") {
+          history.pushState({ tab: clickedTab, sub: null }, "", "#" + clickedTab);
+        } else {
+          history.replaceState({ tab: clickedTab, sub: null }, "", "#" + clickedTab);
+        }
+      } catch (err) {}
+    }, true);
+
+    // Restore exact tab on page refresh instead of jumping back to Home
+    setTimeout(() => {
+      getBottomNavEl();
+      const hashTab = (location.hash || "").replace("#", "").split("/")[0];
+      const savedTab = hashTab || sessionStorage.getItem("swiftcart_active_tab") || "home";
+      if (savedTab && savedTab !== "home") {
+        try { history.replaceState({ tab: "home", sub: null }, "", "#home"); } catch (e) {}
+        switchToMainTab(savedTab, true);
+      } else {
+        try { history.replaceState({ tab: "home", sub: null }, "", "#home"); } catch (e) {}
+      }
+    }, 750);
 
     // Initialize everything cleanly
     applyLang();
