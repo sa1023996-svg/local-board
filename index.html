@@ -443,6 +443,76 @@
       padding-bottom: 14px !important;
     }
 
+  
+    /* FACEBOOK-STYLE PROFILE, SETTINGS DRAWER & 100% DARK MODE CONTRAST */
+    body.hide-bottom-nav #swiftBottomNav,
+    body.hide-bottom-nav .dark-toggle-btn {
+      display: none !important;
+      visibility: hidden !important;
+      height: 0 !important;
+      overflow: hidden !important;
+    }
+
+    /* Fix white-on-white chat bubbles & pills in Dark Mode */
+    body.dark-mode #friendsView div[style*="background"],
+    body.dark-mode #friendsView span[style*="background"],
+    body.dark-mode #friendsView p[style*="background"] {
+      background: #1e293b !important;
+      color: #f1f5f9 !important;
+      border-color: #334155 !important;
+    }
+    body.dark-mode #friendsView .wa-chat-header,
+    body.dark-mode #friendsView .wa-chat-header div,
+    body.dark-mode #friendsView .wa-chat-header span,
+    body.dark-mode #friendsView .wa-chat-header button {
+      background: transparent !important;
+      color: #fff !important;
+    }
+    body.dark-mode #friendsView .wa-chat-header {
+      background: linear-gradient(135deg, #075e54, #128c7e) !important;
+    }
+    body.dark-mode #friendsView .inbox-tab-btn.active {
+      background: #2563eb !important;
+      color: #fff !important;
+    }
+    body.dark-mode #friendsView .toggle-on { background: #16a34a !important; color: #fff !important; }
+    body.dark-mode #friendsView .toggle-off { background: #dc2626 !important; color: #fff !important; }
+
+    /* Facebook-Style Profile Card */
+    .fb-prof-wrap {
+      background: #fff; border-radius: 14px; overflow: hidden;
+      border: 1px solid #e2e8f0; margin-bottom: 12px;
+    }
+    body.dark-mode .fb-prof-wrap {
+      background: #1e293b !important; border-color: #334155 !important; color: #f1f5f9 !important;
+    }
+    .fb-top-icons {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 12px;
+    }
+    .fb-ico-circle {
+      width: 34px !important; height: 34px; border-radius: 50% !important;
+      padding: 0 !important; margin: 0 !important; border: none !important;
+      background: rgba(148,163,184,0.22) !important; color: inherit !important;
+      font-size: 15px !important; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .fb-cover {
+      height: 115px; background: linear-gradient(135deg, #1d4ed8, #0f766e);
+      position: relative;
+    }
+    .fb-av-holder {
+      width: 96px; height: 96px; border-radius: 50%; margin: -48px auto 6px auto;
+      position: relative; border: 4px solid #fff; background: #cbd5e1; overflow: hidden;
+      display: flex; align-items: center; justify-content: center; font-size: 38px;
+    }
+    body.dark-mode .fb-av-holder { border-color: #1e293b; background: #334155; }
+    .fb-av-holder img { width: 100%; height: 100%; object-fit: cover; }
+    .fb-glance-row {
+      display: flex; align-items: center; gap: 8px; padding: 6px 0;
+      font-size: 13px; border-bottom: 1px solid rgba(148,163,184,0.15);
+    }
+    .fb-glance-row:last-child { border-bottom: none; }
+
   </style>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" href="logo.png">
@@ -3878,6 +3948,359 @@
       }
     }, 750);
 
+    // --- FACEBOOK-STYLE USER & SHOP PROFILE, SETTINGS MENU & CLEAN CHAT ---
+    let fbExtraDetails = JSON.parse(localStorage.getItem("swiftcart_fb_details") || '{"bio":"","livesIn":"","fromPlace":"","worksAt":"","studiedAt":"","showLives":true,"showFrom":true,"showWorks":true,"showStudied":true}');
+
+    // Reliable Bottom Nav Locator (finds container holding both Home and Profile buttons)
+    getBottomNavEl = function() {
+      let nav = document.getElementById("swiftBottomNav");
+      if (nav) return nav;
+      const allBtns = Array.from(document.querySelectorAll("button"));
+      const homeBtn = allBtns.find(b => /\bHome\b/i.test(b.innerText || ""));
+      if (homeBtn) {
+        let p = homeBtn.parentElement;
+        while (p && p !== document.body) {
+          if (/\bProfile\b/i.test(p.innerText || "") && /\bHome\b/i.test(p.innerText || "")) {
+            p.id = "swiftBottomNav";
+            return p;
+          }
+          p = p.parentElement;
+        }
+      }
+      return null;
+    };
+
+    // Hide duplicate "Local Seller [Back]" row below green WhatsApp header & fix chat UI
+    const _prevWaHdr5 = typeof injectWhatsAppChatHeader === "function" ? injectWhatsAppChatHeader : null;
+    injectWhatsAppChatHeader = function() {
+      if (_prevWaHdr5) _prevWaHdr5();
+      const fv = document.getElementById("friendsView");
+      if (!fv) return;
+      const chatPanel = typeof findChatPanelEl === "function" ? findChatPanelEl() : null;
+      if (!chatPanel) return;
+
+      // Hide every child row inside chatPanel that has a Back button (other than waRichHeader)
+      chatPanel.querySelectorAll("div").forEach(el => {
+        if (el.id === "waRichHeader" || el.closest("#waRichHeader")) return;
+        const directBtns = Array.from(el.children).filter(c => c.tagName === "BUTTON");
+        if (directBtns.some(b => /back/i.test(b.innerText || ""))) {
+          el.style.display = "none";
+        }
+      });
+      setBottomBarVisible(false);
+    };
+
+    // Clean Personal Tab: hide duplicate Friend Requests badge completely
+    const _prevCleanPersonal5 = typeof cleanPersonalListUI === "function" ? cleanPersonalListUI : null;
+    cleanPersonalListUI = function() {
+      if (_prevCleanPersonal5) _prevCleanPersonal5();
+      const fv = document.getElementById("friendsView");
+      if (!fv) return;
+      fv.querySelectorAll("div, span, p, button").forEach(el => {
+        if (el.closest("#inboxFolderBar")) return;
+        const t = (el.innerText || "").trim();
+        if (t === "Friend Requests" || t.startsWith("No pending friend requests")) {
+          el.style.display = "none";
+        }
+      });
+    };
+
+    // --- FACEBOOK-STYLE USER PROFILE + THREE-LINES SETTINGS ---
+    window.openThreeLinesSettings = () => {
+      const slot = document.getElementById("settingsModalSlot");
+      const syncCard = document.getElementById("swiftAccountSyncCard");
+      const privCard = document.getElementById("profilePrivacyCard");
+      if (slot) {
+        if (syncCard) { syncCard.style.display = "block"; slot.appendChild(syncCard); }
+        if (privCard) { privCard.style.display = "block"; slot.appendChild(privCard); }
+      }
+      document.getElementById("threeLinesSettingsModal").style.display = "block";
+      setBottomBarVisible(false);
+      pushSubScreenState("settings");
+    };
+
+    // Include threeLinesSettingsModal in closeAnyOpenModal
+    const _prevCloseModals5 = typeof closeAnyOpenModal === "function" ? closeAnyOpenModal : null;
+    closeAnyOpenModal = function() {
+      const sm = document.getElementById("threeLinesSettingsModal");
+      if (sm && sm.style.display && sm.style.display !== "none") {
+        sm.style.display = "none";
+        setBottomBarVisible(true);
+        return true;
+      }
+      return _prevCloseModals5 ? _prevCloseModals5() : false;
+    };
+
+    window.toggleFbProfileEdit = () => {
+      const box = document.getElementById("fbEditDetailsBox");
+      if (!box) return;
+      box.style.display = box.style.display === "none" ? "block" : "none";
+    };
+
+    window.saveFbProfileDetails = () => {
+      const up = typeof userProfile !== "undefined" ? userProfile : {};
+      const newName = (document.getElementById("fbEditName")?.value || "").trim();
+      if (newName) {
+        up.name = newName;
+        localStorage.setItem("userProfile", JSON.stringify(up));
+      }
+      fbExtraDetails.bio = (document.getElementById("fbEditBio")?.value || "").trim();
+      fbExtraDetails.livesIn = (document.getElementById("fbEditLives")?.value || "").trim();
+      fbExtraDetails.fromPlace = (document.getElementById("fbEditFrom")?.value || "").trim();
+      fbExtraDetails.worksAt = (document.getElementById("fbEditWorks")?.value || "").trim();
+      fbExtraDetails.studiedAt = (document.getElementById("fbEditStudied")?.value || "").trim();
+      fbExtraDetails.showLives = !!document.getElementById("fbShowLives")?.checked;
+      fbExtraDetails.showFrom = !!document.getElementById("fbShowFrom")?.checked;
+      fbExtraDetails.showWorks = !!document.getElementById("fbShowWorks")?.checked;
+      fbExtraDetails.showStudied = !!document.getElementById("fbShowStudied")?.checked;
+      localStorage.setItem("swiftcart_fb_details", JSON.stringify(fbExtraDetails));
+      document.getElementById("fbEditDetailsBox").style.display = "none";
+      renderFacebookUserProfile();
+      alert("✅ Profile updated!");
+    };
+
+    window.uploadFbUserAvatar = async (inp) => {
+      const file = inp.files && inp.files[0];
+      if (!file) return;
+      const url = await uploadToCloudinary(file, "image");
+      if (!url) return alert("Photo upload failed.");
+      if (typeof userProfile !== "undefined") {
+        userProfile.avatarUrl = url;
+        localStorage.setItem("userProfile", JSON.stringify(userProfile));
+      }
+      renderFacebookUserProfile();
+    };
+
+    function renderFacebookUserProfile() {
+      const pv = document.getElementById("profileView");
+      if (!pv) return;
+
+      // Move Sync & Privacy cards into Settings Drawer so Profile stays clean
+      const slot = document.getElementById("settingsModalSlot");
+      const syncCard = document.getElementById("swiftAccountSyncCard");
+      const privCard = document.getElementById("profilePrivacyCard");
+      const oldSetBtn = document.getElementById("swiftSettingsBtn");
+      if (oldSetBtn) oldSetBtn.style.display = "none";
+      if (slot) {
+        if (syncCard) slot.appendChild(syncCard);
+        if (privCard) slot.appendChild(privCard);
+      }
+
+      // Hide old duplicate "Profile: Public" pill in native profile
+      pv.querySelectorAll("button, span, div").forEach(el => {
+        if (el.closest("#fbProfileContainer") || el.closest("#threeLinesSettingsModal")) return;
+        const t = (el.innerText || "").trim();
+        if (/^Profile:\s*(Public|Locked)$/i.test(t)) {
+          el.style.display = "none";
+        }
+      });
+
+      let fbWrap = document.getElementById("fbProfileContainer");
+      if (!fbWrap) {
+        fbWrap = document.createElement("div");
+        fbWrap.id = "fbProfileContainer";
+        pv.prepend(fbWrap);
+      }
+
+      const up = typeof userProfile !== "undefined" ? userProfile : {};
+      const uName = up.name || "SwiftCart User";
+      const avHtml = up.avatarUrl
+        ? `<img src="${up.avatarUrl}">`
+        : `<span>👤</span>`;
+
+      const glanceItems = [];
+      if (fbExtraDetails.livesIn && fbExtraDetails.showLives) glanceItems.push(`<div class="fb-glance-row">📍 <span>Lives in <strong>${fbExtraDetails.livesIn}</strong></span></div>`);
+      if (fbExtraDetails.fromPlace && fbExtraDetails.showFrom) glanceItems.push(`<div class="fb-glance-row">🏠 <span>From <strong>${fbExtraDetails.fromPlace}</strong></span></div>`);
+      if (fbExtraDetails.worksAt && fbExtraDetails.showWorks) glanceItems.push(`<div class="fb-glance-row">💼 <span>Works at <strong>${fbExtraDetails.worksAt}</strong></span></div>`);
+      if (fbExtraDetails.studiedAt && fbExtraDetails.showStudied) glanceItems.push(`<div class="fb-glance-row">🎓 <span>Studied at <strong>${fbExtraDetails.studiedAt}</strong></span></div>`);
+
+      fbWrap.innerHTML = `
+        <div class="fb-prof-wrap">
+          <div class="fb-top-icons">
+            <button type="button" class="fb-ico-circle" onclick="openThreeLinesSettings()" title="Settings & Privacy">≡</button>
+            <div style="display:flex;gap:8px;">
+              <button type="button" class="fb-ico-circle" onclick="toggleFbProfileEdit()" title="Edit Profile">✏️</button>
+              <button type="button" class="fb-ico-circle" onclick="switchToMainTab('buysell', true)" title="Search Market">🔍</button>
+              <button type="button" class="fb-ico-circle" onclick="openThreeLinesSettings()" title="More">•••</button>
+            </div>
+          </div>
+
+          <div class="fb-cover"></div>
+          <div class="fb-av-holder" onclick="document.getElementById('fbUserAvFile').click()" style="cursor:pointer;" title="Change Profile Photo">
+            ${avHtml}
+          </div>
+          <input type="file" id="fbUserAvFile" accept="image/*" style="display:none;" onchange="uploadFbUserAvatar(this)">
+
+          <div style="text-align:center;padding:0 14px 14px 14px;">
+            <h2 style="margin:2px 0;font-size:20px;">${uName}</h2>
+            ${fbExtraDetails.bio ? `<div style="font-size:13px;opacity:0.85;margin-bottom:4px;">${fbExtraDetails.bio}</div>` : `<div style="font-size:12px;opacity:0.7;margin-bottom:4px;">Tap ✏️ above to add bio & details</div>`}
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+              <button type="button" onclick="openMyShopProfile()" style="margin:0;padding:9px;background:#2563eb;color:#fff;font-weight:bold;border-radius:8px;font-size:13px;">🏪 My Shop</button>
+              <button type="button" onclick="switchToMainTab('home', true)" style="margin:0;padding:9px;background:#334155;color:#fff;font-weight:bold;border-radius:8px;font-size:13px;">➕ Create Post</button>
+            </div>
+
+            <!-- EDIT DETAILS & PUBLIC/HIDE TOGGLES -->
+            <div id="fbEditDetailsBox" style="display:none;text-align:left;margin-top:12px;padding:10px;border-radius:10px;background:rgba(148,163,184,0.12);">
+              <div style="font-weight:bold;font-size:13px;margin-bottom:6px;">✏️ Edit Profile & Choose What's Public</div>
+              <input type="text" id="fbEditName" value="${uName}" placeholder="Full Name" style="margin-bottom:6px;">
+              <input type="text" id="fbEditBio" value="${fbExtraDetails.bio || ''}" placeholder="Short Bio (e.g. Shopkeeper, Student, Chef)" style="margin-bottom:6px;">
+
+              <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+                <input type="text" id="fbEditLives" value="${fbExtraDetails.livesIn || ''}" placeholder="📍 Lives in..." style="margin:0;flex:1;">
+                <label style="font-size:11px;white-space:nowrap;"><input type="checkbox" id="fbShowLives" ${fbExtraDetails.showLives ? 'checked' : ''}> Public</label>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+                <input type="text" id="fbEditFrom" value="${fbExtraDetails.fromPlace || ''}" placeholder="🏠 From..." style="margin:0;flex:1;">
+                <label style="font-size:11px;white-space:nowrap;"><input type="checkbox" id="fbShowFrom" ${fbExtraDetails.showFrom ? 'checked' : ''}> Public</label>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+                <input type="text" id="fbEditWorks" value="${fbExtraDetails.worksAt || ''}" placeholder="💼 Works at..." style="margin:0;flex:1;">
+                <label style="font-size:11px;white-space:nowrap;"><input type="checkbox" id="fbShowWorks" ${fbExtraDetails.showWorks ? 'checked' : ''}> Public</label>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+                <input type="text" id="fbEditStudied" value="${fbExtraDetails.studiedAt || ''}" placeholder="🎓 Studied at..." style="margin:0;flex:1;">
+                <label style="font-size:11px;white-space:nowrap;"><input type="checkbox" id="fbShowStudied" ${fbExtraDetails.showStudied ? 'checked' : ''}> Public</label>
+              </div>
+              <button type="button" onclick="saveFbProfileDetails()" style="background:#16a34a;color:#fff;font-weight:bold;padding:8px;border-radius:8px;">💾 Save Details</button>
+            </div>
+
+            <!-- AT A GLANCE PUBLIC DETAILS -->
+            <div style="text-align:left;margin-top:12px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <strong style="font-size:14px;">At a glance</strong>
+                <span onclick="toggleFbProfileEdit()" style="font-size:12px;color:#3b82f6;cursor:pointer;font-weight:bold;">Edit</span>
+              </div>
+              ${glanceItems.length ? glanceItems.join("") : `<div style="font-size:12px;opacity:0.75;">Add your hometown, work, or school in Edit.</div>`}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // --- FACEBOOK-STYLE MY SHOP PROFILE (CLEAN VIEW MODE + EDIT TOGGLE) ---
+    window.openMyShopProfile = () => {
+      const sp = typeof shopProfile !== "undefined" ? shopProfile : {};
+      const up = typeof userProfile !== "undefined" ? userProfile : {};
+      const modal = document.getElementById("myShopProfileModal");
+      if (!modal) return;
+
+      const defaultAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='%23dbeafe'/><text x='50' y='62' font-size='44' text-anchor='middle'>🏪</text></svg>";
+      const shopAv = sp.photoUrl || up.avatarUrl || defaultAvatar;
+      const hasSavedShop = !!(sp.name && sp.name.trim());
+
+      modal.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <button type="button" onclick="triggerAppBack()" style="width:auto;margin:0;padding:6px 12px;background:#334155;color:#fff;border-radius:8px;">⬅ Back</button>
+          <strong style="font-size:15px;">🏪 Shop Profile</strong>
+          <button type="button" onclick="updateFixedShopLocation()" style="width:auto;margin:0;padding:6px 10px;background:#0284c7;color:#fff;border-radius:8px;font-size:11px;">📍 Pin Spot</button>
+        </div>
+
+        <div class="fb-prof-wrap">
+          <div class="fb-cover" style="background:linear-gradient(135deg,#0f766e,#1d4ed8);"></div>
+          <div class="fb-av-holder" onclick="document.getElementById('spPhotoFile').click()" style="cursor:pointer;">
+            <img id="spAvatarPreview" src="${shopAv}">
+          </div>
+          <input type="file" id="spPhotoFile" accept="image/*" style="display:none;" onchange="uploadShopAvatar()">
+
+          <div style="text-align:center;padding:0 14px 14px 14px;">
+            <div onclick="document.getElementById('spPhotoFile').click()" style="color:#3b82f6;font-weight:bold;font-size:11px;cursor:pointer;margin-bottom:4px;">📷 Change Shop Photo</div>
+            <h2 style="margin:2px 0;font-size:20px;">${sp.name || "Your Shop Name"}</h2>
+            <div style="font-size:12px;opacity:0.85;">🏷️ ${sp.category || "Local Shop"}${sp.address ? " • 📍 " + sp.address : ""}</div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:12px;">
+              <button type="button" onclick="triggerShopOfferPost()" style="margin:0;padding:9px 4px;background:#f59e0b;color:#fff;font-weight:bold;border-radius:8px;font-size:12px;">➕ Offer</button>
+              <button type="button" onclick="toggleJobForm()" style="margin:0;padding:9px 4px;background:#7c3aed;color:#fff;font-weight:bold;border-radius:8px;font-size:12px;">💼 Post Job</button>
+              <button type="button" onclick="toggleShopEditForm()" style="margin:0;padding:9px 4px;background:#334155;color:#fff;font-weight:bold;border-radius:8px;font-size:12px;">✏️ Edit Shop</button>
+            </div>
+
+            <!-- EDIT SHOP FORM (HIDDEN ONCE SAVED; OPENS WHEN EDIT SHOP IS TAPPED) -->
+            <div id="shopEditFormCard" style="display:${hasSavedShop ? 'none' : 'block'};text-align:left;margin-top:12px;padding:10px;border-radius:10px;background:rgba(148,163,184,0.12);">
+              <div style="font-weight:bold;font-size:13px;margin-bottom:6px;">🏪 Shop Details</div>
+              <input type="text" id="spNameInp" value="${sp.name || ''}" placeholder="Shop Name (e.g. Saim Kirana Store)" style="margin-bottom:6px;">
+              <select id="spCatInp" style="margin-bottom:6px;">
+                <option value="Grocery" ${sp.category === 'Grocery' ? 'selected' : ''}>🥦 Grocery / Kirana</option>
+                <option value="Fashion" ${sp.category === 'Fashion' ? 'selected' : ''}>👕 Fashion / Kapda</option>
+                <option value="Mobiles" ${sp.category === 'Mobiles' ? 'selected' : ''}>📱 Mobiles & Recharge</option>
+                <option value="Food" ${sp.category === 'Food' ? 'selected' : ''}>🍔 Food / Hotel / Sweets</option>
+                <option value="Medical" ${sp.category === 'Medical' ? 'selected' : ''}>💊 Medical / Clinic</option>
+                <option value="Electronics" ${sp.category === 'Electronics' ? 'selected' : ''}>🎧 Electronics</option>
+                <option value="Services" ${sp.category === 'Services' ? 'selected' : ''}>🛠️ Services / Repair</option>
+              </select>
+              <input type="text" id="spAddrInp" value="${sp.address || ''}" placeholder="Landmark / Address (e.g. Near Main Chowk)" style="margin-bottom:8px;">
+              <button type="button" onclick="saveAndRefreshShopProfile()" style="background:#16a34a;color:#fff;font-weight:bold;padding:9px;border-radius:8px;">💾 Save Shop Profile</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- POST LOCAL JOB BOX -->
+        <div id="postJobBox" class="box" style="display:none;border:2px solid #7c3aed;">
+          <div style="font-weight:bold;margin-bottom:8px;color:#7c3aed;">💼 Post a Local Job (3 KM)</div>
+          <input type="text" id="jobRoleInp" placeholder="Job Role (e.g. Shop Helper, Computer Operator)" style="margin-bottom:6px;">
+          <input type="text" id="jobSalaryInp" placeholder="Monthly Salary (e.g. ₹8,000 - ₹10,000)" style="margin-bottom:6px;">
+          <select id="jobTimingInp" style="margin-bottom:6px;">
+            <option value="Full Time">Full Time</option>
+            <option value="Part Time">Part Time (Students Welcome)</option>
+            <option value="Morning / Evening Shift">Morning / Evening Shift</option>
+          </select>
+          <textarea id="jobDescInp" rows="2" placeholder="Extra details (Timing, qualification, etc.)" style="margin-bottom:8px;"></textarea>
+          <button type="button" onclick="publishLocalJob()" style="background:#7c3aed;color:#fff;font-weight:bold;">🚀 Publish Job Opening</button>
+        </div>
+
+        <div style="font-weight:bold;margin:10px 0 6px 0;">📦 My Shop Offers & Jobs</div>
+        <div id="myShopItemsList"></div>
+      `;
+
+      renderMyShopItems();
+      modal.style.display = "block";
+      setBottomBarVisible(false);
+      pushSubScreenState("myshop");
+    };
+
+    window.toggleShopEditForm = () => {
+      const card = document.getElementById("shopEditFormCard");
+      if (card) card.style.display = card.style.display === "none" ? "block" : "none";
+    };
+
+    window.saveAndRefreshShopProfile = () => {
+      saveFullShopProfile();
+      openMyShopProfile();
+    };
+
+    // Fix renderMyShopItems so photo-only offers also display a clean label instead of blank
+    renderMyShopItems = function() {
+      const list = document.getElementById("myShopItemsList");
+      if (!list) return;
+      const mine = allPosts.filter(p => p.deviceId === deviceId && p.type === "Business");
+      if (mine.length === 0) {
+        list.innerHTML = "<div class='box'>No shop offers or jobs posted yet.</div>";
+        return;
+      }
+      list.innerHTML = mine.map(p => {
+        const desc = (p.text || p.title || "").trim() || (p.price ? `Offer Price: ₹${p.price}` : "📷 Shop Photo Offer");
+        return `<div class="box" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <div style="font-size:12px;flex:1;">
+            <strong>${p.category === "Jobs" ? "💼 JOB" : "🛍️ OFFER"}:</strong> ${desc}
+          </div>
+          <button type="button" onclick="deleteMyShopPost('${p.id}')" style="width:auto;margin:0;padding:5px 8px;background:#ef4444;color:#fff;font-size:11px;border-radius:6px;">🗑️ Delete</button>
+        </div>`;
+      }).join("");
+    };
+
+    // Build Facebook-style User Profile on load and whenever Profile tab is opened
+    setTimeout(() => {
+      getBottomNavEl();
+      renderFacebookUserProfile();
+      cleanPersonalListUI();
+    }, 900);
+
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (btn && /\bProfile\b/i.test(btn.innerText || "")) {
+        setTimeout(renderFacebookUserProfile, 50);
+      }
+    });
+
     // Initialize everything cleanly
     applyLang();
     loadProfileUI();
@@ -4131,6 +4554,18 @@
         <span onclick="resetSwiftPassword()" style="color:#2563eb;cursor:pointer;font-weight:bold;">Forgot Password?</span>
         <span onclick="closeSwiftAuthModal()" style="opacity:0.75;cursor:pointer;">Skip for now ✖</span>
       </div>
+    </div>
+  </div>
+  <!-- THREE-LINES SETTINGS DRAWER MODAL (FULL SCREEN, BOTTOM BAR HIDDEN) -->
+  <div id="threeLinesSettingsModal" class="full-page-modal" style="z-index:9940;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <button type="button" onclick="triggerAppBack()" style="width:auto;margin:0;padding:6px 12px;background:#334155;color:#fff;border-radius:8px;">⬅ Back</button>
+      <strong style="font-size:16px;">≡ Settings & Privacy</strong>
+    </div>
+    <div id="settingsModalSlot"></div>
+    <div class="box" style="display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:13px;font-weight:bold;">🌙 Dark / Light Theme</span>
+      <button type="button" onclick="toggleDarkMode()" style="width:auto;margin:0;padding:6px 12px;background:#2563eb;color:#fff;border-radius:8px;font-size:12px;">Switch Theme</button>
     </div>
   </div>
 </body>
