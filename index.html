@@ -10,7 +10,7 @@
   </defs>
   <rect width="100" height="100" rx="22" fill="url(#sBg)" stroke="#60a5fa" stroke-width="3"/>
   <text x="50" y="75" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="72" fill="url(#sGrad)" stroke="#fff" stroke-width="2">S</text>
-</svg><span>Local Chat Board</span></span></title>
+</svg><span>SwiftCart</span></span></title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💬</text></svg>">
   <style>
     body { font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 12px 12px 75px 12px; }
@@ -112,6 +112,37 @@
     .noon-actions { display: flex; gap: 4px; margin-top: auto; }
     .noon-actions button { flex: 1; padding: 5px 2px; font-size: 11px; margin: 0; border-radius: 6px; }
 
+  
+    /* DARK MODE */
+    body.dark-mode { background: #0f172a !important; color: #e2e8f0 !important; }
+    body.dark-mode .box, body.dark-mode .card, body.dark-mode .noon-card, body.dark-mode .cat-item, body.dark-mode .prod-modal-card {
+      background: #1e293b !important; color: #f1f5f9 !important; border-color: #334155 !important;
+    }
+    body.dark-mode input, body.dark-mode textarea, body.dark-mode select {
+      background: #0f172a !important; color: #f8fafc !important; border-color: #475569 !important;
+    }
+    body.dark-mode .bottom-nav, body.dark-mode nav {
+      background: #1e293b !important; border-top-color: #334155 !important;
+    }
+    body.dark-mode .noon-title, body.dark-mode .noon-shop { color: #e2e8f0 !important; }
+    body.dark-mode .prod-spec-list { background: #0f172a !important; border-color: #334155 !important; }
+    .dark-toggle-btn {
+      position: fixed; top: 10px; right: 10px; z-index: 9500;
+      width: 36px !important; height: 36px; border-radius: 50% !important;
+      padding: 0 !important; margin: 0 !important;
+      background: rgba(15,23,42,0.75) !important; color: #fde047 !important;
+      border: 1.5px solid rgba(255,255,255,0.3) !important; font-size: 16px;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+    /* FULL-SCREEN PHOTO VIEWER */
+    .full-img-modal {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.94);
+      z-index: 10050; justify-content: center; align-items: center; padding: 12px;
+    }
+    .full-img-modal img {
+      max-width: 100%; max-height: 92vh; object-fit: contain; border-radius: 8px;
+    }
+
   </style>
 </head>
 <body>
@@ -127,7 +158,7 @@
     </div>
 
     <div class="header">
-      <h2 id="uiTitle">Local Chat Board</h2>
+      <h2 id="uiTitle">SwiftCart</h2>
       <div id="locStatus">Checking location...</div>
     </div>
 
@@ -341,7 +372,7 @@
 
     const translations = {
       en: {
-        title: "Local Chat Board",
+        title: "SwiftCart",
         locOn: "✅ Location is ON (Only 3 KM posts shown)",
         locOff: "❌ Please allow Location (GPS) in browser!",
         namePh: "Enter your name or shop name",
@@ -1125,7 +1156,7 @@
 
       await addDoc(collection(db, "posts"), {
         name, type: "Business", category: cat, text, price: shopPriceVal, specs, imageUrl, audioUrl: "",
-        lat: myLat, lng: myLng, deviceId, avatarUrl: shopProfile.photoUrl || userProfile.avatarUrl || "",
+        lat: shopProfile.shopLat || myLat, lng: shopProfile.shopLng || myLng, deviceId, avatarUrl: shopProfile.photoUrl || userProfile.avatarUrl || "",
         likes: 0, dislikes: 0, likedBy: [], dislikedBy: [], comments: [], createdAt: Date.now()
       });
       if (document.getElementById("shopPrice")) document.getElementById("shopPrice").value = "";
@@ -1370,7 +1401,7 @@
 
     // --- S-LOGO IN TOP BANNER & NOON SHOPS FIX ---
     (function addBrandLogo() {
-      const hdr = document.querySelector(".header") || Array.from(document.querySelectorAll("div")).find(d => d.innerText && d.innerText.includes("Local Chat Board") && d.children.length <= 4);
+      const hdr = document.querySelector(".header") || Array.from(document.querySelectorAll("div")).find(d => d.innerText && d.innerText.includes("SwiftCart") && d.children.length <= 4);
       if (hdr && !document.getElementById("sBrandLogo")) {
         hdr.style.display = "flex";
         hdr.style.alignItems = "center";
@@ -1469,6 +1500,57 @@
       }).join("") + "</div>";
     }
 
+    // --- STEP 1: DARK MODE, FULL-SCREEN PHOTO VIEWER & AUTO-PIN SHOP LOCATION ---
+    window.toggleDarkMode = () => {
+      const isDark = document.body.classList.toggle("dark-mode");
+      localStorage.setItem("swiftcart_dark", isDark ? "1" : "0");
+      const btn = document.getElementById("darkToggleBtn");
+      if (btn) btn.innerText = isDark ? "☀️" : "🌙";
+    };
+    if (localStorage.getItem("swiftcart_dark") === "1") {
+      document.body.classList.add("dark-mode");
+      const btn = document.getElementById("darkToggleBtn");
+      if (btn) btn.innerText = "☀️";
+    }
+
+    window.openFullImage = (src) => {
+      if (!src) return;
+      document.getElementById("fullImgSrc").src = src;
+      document.getElementById("fullImgModal").style.display = "flex";
+    };
+    window.closeFullImage = () => {
+      document.getElementById("fullImgModal").style.display = "none";
+    };
+
+    // Click any feed/product detail photo to open full-screen uncropped
+    document.addEventListener("click", (e) => {
+      const t = e.target;
+      if (t && t.tagName === "IMG" && t.src && !t.closest("#fullImgModal") && !t.closest("#storyModal") && !t.closest(".noon-img-wrap") && !t.classList.contains("story-bg")) {
+        if (t.id === "pdImg" || t.closest("#feed") || t.closest("#homeView") || t.closest("#profileView")) {
+          openFullImage(t.src);
+        }
+      }
+    });
+
+    // Auto-Pin Shop Location once shop is created (stays fixed even if owner travels)
+    setInterval(() => {
+      if (typeof shopProfile !== "undefined" && shopProfile && shopProfile.name && !shopProfile.shopLat && myLat && myLng) {
+        shopProfile.shopLat = myLat;
+        shopProfile.shopLng = myLng;
+        localStorage.setItem("shopProfile", JSON.stringify(shopProfile));
+      }
+    }, 3000);
+
+    window.updateFixedShopLocation = () => {
+      if (!myLat || !myLng) return alert("Please allow GPS location first.");
+      if (typeof shopProfile !== "undefined") {
+        shopProfile.shopLat = myLat;
+        shopProfile.shopLng = myLng;
+        localStorage.setItem("shopProfile", JSON.stringify(shopProfile));
+        alert("📍 Shop location updated to your current spot!");
+      }
+    };
+
     // Initialize everything cleanly
     applyLang();
     loadProfileUI();
@@ -1541,5 +1623,13 @@
     <div id="stViewCap" style="position:absolute;bottom:24px;left:16px;right:16px;text-align:center;color:#fff;background:rgba(0,0,0,0.6);padding:8px 12px;border-radius:10px;font-size:14px;display:none;"></div>
   </div>
   <input type="file" id="storyPhotoInput" accept="image/*" style="display:none;" onchange="uploadNewStory()">
+  <!-- DARK MODE TOGGLE -->
+  <button type="button" id="darkToggleBtn" class="dark-toggle-btn" onclick="toggleDarkMode()" title="Dark / Light Mode">🌙</button>
+
+  <!-- FULL-SCREEN PHOTO MODAL -->
+  <div id="fullImgModal" class="full-img-modal" onclick="closeFullImage()">
+    <button type="button" onclick="closeFullImage()" style="position:absolute;top:14px;right:14px;width:38px;height:38px;margin:0;padding:0;border-radius:50%;background:rgba(255,255,255,0.2);color:#fff;font-size:18px;border:none;cursor:pointer;">✖</button>
+    <img id="fullImgSrc" src="" onclick="event.stopPropagation()">
+  </div>
 </body>
 </html>
