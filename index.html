@@ -266,6 +266,44 @@
       background: #0d9488 !important; color: #fff !important;
     }
 
+  
+    /* FIX DARK MODE IN FRIENDS & CHAT */
+    body.dark-mode .priv-bar,
+    body.dark-mode .wa-member-row {
+      background: #1e293b !important;
+      color: #f1f5f9 !important;
+      border-color: #334155 !important;
+    }
+    body.dark-mode #friendsView div:not(.inbox-tabs):not(.req-subtabs):not(.wa-av),
+    body.dark-mode #friendsView span:not(.toggle-pill) {
+      color: #f1f5f9 !important;
+    }
+    body.dark-mode #friendsView .box,
+    body.dark-mode #friendsView [class*="card"],
+    body.dark-mode #friendsView [class*="row"],
+    body.dark-mode #friendsView [class*="item"],
+    body.dark-mode #friendsView [class*="pill"],
+    body.dark-mode #friendsView [class*="badge"] {
+      background: #1e293b !important;
+      color: #f1f5f9 !important;
+      border-color: #334155 !important;
+    }
+    /* Fix large white chat messages area in Dark Mode */
+    body.dark-mode #chatMessages,
+    body.dark-mode #messages,
+    body.dark-mode #chatHistory,
+    body.dark-mode #friendsView [style*="overflow"],
+    body.dark-mode #friendsView [style*="height:"] {
+      background: #0f172a !important;
+      color: #f1f5f9 !important;
+      border-color: #334155 !important;
+    }
+    body.dark-mode #friendsView input {
+      background: #1e293b !important;
+      color: #fff !important;
+      border-color: #475569 !important;
+    }
+
   </style>
 </head>
 <body>
@@ -2436,6 +2474,132 @@
 
     // Run initial cleanup once Friends tab loads
     setTimeout(() => { classifyFriendsViewChildren(); }, 600);
+
+    // --- FIX 4: CLEAN WHATSAPP CHAT SCREEN & HIDE DUPLICATE REQUESTS ---
+    function findChatPanelEl() {
+      const fv = document.getElementById("friendsView");
+      if (!fv) return null;
+      const inp = fv.querySelector("input[placeholder*='message' i], input[placeholder*='type' i]");
+      if (inp) {
+        let box = inp.parentElement;
+        while (box && box.parentElement !== fv) box = box.parentElement;
+        return box;
+      }
+      return Array.from(fv.children).find(el => el.id !== "inboxFolderBar" && /Type a private message/i.test(el.innerText || ""));
+    }
+
+    function cleanPersonalListUI() {
+      const fv = document.getElementById("friendsView");
+      if (!fv) return;
+      const chatPanel = findChatPanelEl();
+      if (chatPanel) chatPanel.style.display = "none";
+
+      // Hide old "Friend Requests" heading & "No pending friend requests" inside Personal tab
+      fv.querySelectorAll("div, p, span, h3, h4").forEach(el => {
+        if (el.closest("#inboxFolderBar") || (chatPanel && chatPanel.contains(el))) return;
+        const t = (el.innerText || "").trim();
+        if (t === "Friend Requests" || t === "No pending friend requests." || t === "No pending friend requests") {
+          el.style.display = "none";
+        }
+      });
+
+      // Make member cards look & act like WhatsApp rows
+      fv.querySelectorAll("button").forEach(btn => {
+        if (btn.closest("#inboxFolderBar") || (chatPanel && chatPanel.contains(btn))) return;
+        if (/Message|Chat/i.test(btn.innerText || "")) {
+          const row = btn.closest("div");
+          if (row && !row.dataset.waRowFixed) {
+            row.dataset.waRowFixed = "1";
+            row.classList.add("wa-member-row");
+            row.onclick = (e) => {
+              if (e.target !== btn) btn.click();
+            };
+          }
+        }
+      });
+    }
+
+    function openWhatsAppChatScreen() {
+      const fv = document.getElementById("friendsView");
+      if (!fv) return;
+      const chatPanel = findChatPanelEl();
+      const folderBar = document.getElementById("inboxFolderBar");
+      if (folderBar) folderBar.style.display = "none";
+      Array.from(fv.children).forEach(el => {
+        if (el === chatPanel) {
+          el.style.display = "block";
+        } else {
+          el.style.display = "none";
+        }
+      });
+    }
+
+    // Override switchInboxFolder cleanly
+    window.switchInboxFolder = (folder) => {
+      activeInboxFolder = folder;
+      ["tabPersonalBtn", "tabBizBtn", "tabReqBtn"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove("active");
+      });
+      const activeBtn = document.getElementById(folder === "personal" ? "tabPersonalBtn" : folder === "business" ? "tabBizBtn" : "tabReqBtn");
+      if (activeBtn) activeBtn.classList.add("active");
+
+      const fv = document.getElementById("friendsView");
+      const customBox = document.getElementById("customFolderContainer");
+      const privBar = document.getElementById("personalPrivacyBar");
+      const folderBar = document.getElementById("inboxFolderBar");
+      const chatPanel = findChatPanelEl();
+      if (!fv || !customBox) return;
+
+      if (folderBar) folderBar.style.display = "block";
+      if (chatPanel) chatPanel.style.display = "none";
+
+      Array.from(fv.children).forEach(child => {
+        if (child.id === "inboxFolderBar" || child === chatPanel) return;
+        child.style.display = (folder === "personal") ? "" : "none";
+      });
+
+      if (privBar) privBar.style.display = (folder === "personal") ? "flex" : "none";
+
+      if (folder === "personal") {
+        customBox.style.display = "none";
+        cleanPersonalListUI();
+      } else if (folder === "business") {
+        customBox.style.display = "block";
+        renderBusinessChatsFolder();
+      } else if (folder === "requests") {
+        customBox.style.display = "block";
+        renderRequestsFolder();
+      }
+    };
+
+    // Hook openChatWith and Message buttons so chat opens full-screen inside Friends tab
+    const _prevOpenChat4 = window.openChatWith;
+    window.openChatWith = function(peerId, peerName, forceType) {
+      if (_prevOpenChat4) _prevOpenChat4(peerId, peerName, forceType);
+      setTimeout(openWhatsAppChatScreen, 30);
+    };
+
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      const txt = (btn.innerText || "").trim();
+
+      // Clicking Friends in bottom nav always opens Personal member list cleanly
+      if (txt.includes("Friends") && btn.closest("nav, .bottom-nav, div[style*='bottom']")) {
+        setTimeout(() => switchInboxFolder("personal"), 40);
+      }
+      // Clicking Message / Open Chat opens WhatsApp chat view
+      if (btn.closest("#friendsView") && !btn.closest("#inboxFolderBar") && /Message|Open Chat/i.test(txt)) {
+        setTimeout(openWhatsAppChatScreen, 40);
+      }
+      // Clicking Back inside chat returns to member list
+      if (btn.closest("#friendsView") && txt === "Back") {
+        setTimeout(() => switchInboxFolder(activeInboxFolder || "personal"), 40);
+      }
+    });
+
+    setTimeout(() => switchInboxFolder("personal"), 700);
 
     // Initialize everything cleanly
     applyLang();
