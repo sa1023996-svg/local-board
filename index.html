@@ -304,6 +304,80 @@
       border-color: #475569 !important;
     }
 
+  
+    /* STEP 4: WHATSAPP HEADER, FREE AUDIO/VIDEO CALLS, FRIENDS GROUP & LIVE TABLE */
+    .wa-chat-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 12px; border-radius: 12px;
+      background: linear-gradient(135deg, #075e54, #128c7e); color: #fff !important;
+      margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
+    .wa-chat-header * { color: #fff !important; }
+    .wa-hdr-av {
+      width: 40px; height: 40px; border-radius: 50%; object-fit: cover;
+      background: rgba(255,255,255,0.22); display: flex; align-items: center;
+      justify-content: center; font-weight: bold; font-size: 17px; flex-shrink: 0;
+    }
+    .wa-call-icon-btn {
+      width: 36px !important; height: 36px; border-radius: 50% !important;
+      padding: 0 !important; margin: 0 !important; font-size: 16px !important;
+      background: rgba(255,255,255,0.2) !important; border: none !important;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+
+    /* FULL-SCREEN CALL MODAL */
+    .call-screen {
+      display: none; position: fixed; inset: 0; background: #0b141a;
+      z-index: 10100; flex-direction: column; justify-content: space-between;
+      align-items: center; padding: 28px 16px; color: #fff;
+    }
+    .remote-vid {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      object-fit: cover; background: #0b141a; z-index: 1;
+    }
+    .local-vid {
+      position: absolute; bottom: 100px; right: 16px; width: 105px; height: 145px;
+      border-radius: 12px; object-fit: cover; border: 2px solid #fff;
+      background: #1e293b; z-index: 3;
+    }
+    .call-overlay-ui {
+      position: relative; z-index: 4; width: 100%; height: 100%;
+      display: flex; flex-direction: column; justify-content: space-between; align-items: center;
+    }
+    .call-ctrl-bar {
+      display: flex; gap: 16px; align-items: center; justify-content: center;
+      background: rgba(15,23,42,0.75); padding: 12px 20px; border-radius: 40px;
+    }
+    .call-ctrl-btn {
+      width: 50px !important; height: 50px; border-radius: 50% !important;
+      padding: 0 !important; margin: 0 !important; font-size: 20px !important;
+      border: none !important; cursor: pointer;
+    }
+
+    /* INCOMING CALL TOAST */
+    .incoming-toast {
+      display: none; position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+      width: 92%; max-width: 400px; background: #0f172a; color: #fff;
+      border: 2px solid #22c55e; border-radius: 14px; padding: 12px 14px;
+      z-index: 10200; box-shadow: 0 10px 25px rgba(0,0,0,0.45);
+    }
+
+    /* LIVE AUDIO TABLE SEATS */
+    .table-seats-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+      background: radial-gradient(circle, #1e3a8a, #0f172a);
+      padding: 12px; border-radius: 16px; border: 2px solid #3b82f6; margin-bottom: 10px;
+    }
+    .seat-item {
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+      background: rgba(255,255,255,0.08); padding: 6px 4px; border-radius: 10px; color: #fff;
+    }
+    .seat-av {
+      width: 38px; height: 38px; border-radius: 50%; background: #2563eb;
+      display: flex; align-items: center; justify-content: center; font-weight: bold;
+      border: 2px solid #22c55e; font-size: 15px; margin-bottom: 3px;
+    }
+
   </style>
 </head>
 <body>
@@ -2601,6 +2675,521 @@
 
     setTimeout(() => switchInboxFolder("personal"), 700);
 
+    // --- STEP 4: WHATSAPP CHAT HEADER, FREE AUDIO/VIDEO CALLS, FRIENDS GROUP & LIVE TABLE ---
+    let activeChatPeerId = "";
+    let activeChatPeerName = "Friend";
+
+    // Capture peerId and peerName whenever a chat is opened
+    const _prevOpenChatStep4 = window.openChatWith;
+    window.openChatWith = function(peerId, peerName, forceType) {
+      activeChatPeerId = peerId || "";
+      activeChatPeerName = peerName || "Friend";
+      if (_prevOpenChatStep4) _prevOpenChatStep4(peerId, peerName, forceType);
+      setTimeout(injectWhatsAppChatHeader, 45);
+    };
+
+    function injectWhatsAppChatHeader() {
+      const fv = document.getElementById("friendsView");
+      if (!fv) return;
+      const chatPanel = typeof findChatPanelEl === "function" ? findChatPanelEl() : null;
+      if (!chatPanel) return;
+
+      // Hide plain default "Chat / Back" header row inside chatPanel
+      Array.from(chatPanel.children).forEach(ch => {
+        if (ch.id === "waRichHeader") return;
+        const t = (ch.innerText || "").trim();
+        if (t.startsWith("Chat") && t.includes("Back") && t.length < 30) {
+          ch.style.display = "none";
+        }
+      });
+
+      let hdr = document.getElementById("waRichHeader");
+      if (!hdr) {
+        hdr = document.createElement("div");
+        hdr.id = "waRichHeader";
+        hdr.className = "wa-chat-header";
+        chatPanel.prepend(hdr);
+      }
+
+      const peerPost = allPosts.find(x => x.deviceId === activeChatPeerId);
+      const peerAv = peerPost && peerPost.avatarUrl ? peerPost.avatarUrl : "";
+      const avHtml = peerAv
+        ? `<img src="${peerAv}" class="wa-hdr-av">`
+        : `<div class="wa-hdr-av">${(activeChatPeerName || "U")[0].toUpperCase()}</div>`;
+
+      hdr.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+          <button type="button" onclick="switchInboxFolder(activeInboxFolder || 'personal')" style="width:auto;margin:0;padding:4px 8px;background:rgba(255,255,255,0.18);border:none;border-radius:8px;font-size:14px;">⬅</button>
+          ${avHtml}
+          <div style="min-width:0;">
+            <div style="font-weight:bold;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${activeChatPeerName}</div>
+            <div style="font-size:10px;opacity:0.85;">SwiftCart • Within 3 KM</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button type="button" class="wa-call-icon-btn" onclick="startFreeWebrtcCall('audio')" title="Free Audio Call">📞</button>
+          <button type="button" class="wa-call-icon-btn" onclick="startFreeWebrtcCall('video')" title="Free Video Call">📹</button>
+        </div>
+      `;
+    }
+
+    // --- FREE 1-ON-1 WEBRTC AUDIO / VIDEO CALLING (ZERO COST) ---
+    let rtcPeer = null;
+    let localCallStream = null;
+    let currentCallDocId = null;
+    let incomingCallData = null;
+    let isMicMuted = false;
+    let isCamOff = false;
+
+    const rtcServers = {
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:stun1.l.google.com:19302" }
+      ]
+    };
+
+    window.startFreeWebrtcCall = async (mode) => {
+      if (!activeChatPeerId) return alert("Select a person to call first.");
+      const isVideo = mode === "video";
+      try {
+        localCallStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isVideo });
+      } catch (err) {
+        return alert("Please allow Microphone" + (isVideo ? " & Camera" : "") + " permission in your browser to make free calls.");
+      }
+
+      document.getElementById("webrtcCallModal").style.display = "flex";
+      document.getElementById("callPeerName").innerText = activeChatPeerName;
+      document.getElementById("callStatusText").innerText = isVideo ? "📹 Ringing (Video Call)..." : "📞 Ringing (Audio Call)...";
+      document.getElementById("localVideo").style.display = isVideo ? "block" : "none";
+      document.getElementById("localVideo").srcObject = localCallStream;
+
+      rtcPeer = new RTCPeerConnection(rtcServers);
+      localCallStream.getTracks().forEach(track => rtcPeer.addTrack(track, localCallStream));
+
+      const remoteStream = new MediaStream();
+      document.getElementById("remoteVideo").srcObject = remoteStream;
+      rtcPeer.ontrack = (e) => {
+        e.streams[0].getTracks().forEach(t => remoteStream.addTrack(t));
+        document.getElementById("callStatusText").innerText = "🟢 Connected (Free Call)";
+      };
+
+      const callId = "call_" + Date.now();
+      currentCallDocId = callId;
+      const myName = (typeof userProfile !== "undefined" && userProfile.name) ? userProfile.name : "Friend";
+
+      const offerDesc = await rtcPeer.createOffer();
+      await rtcPeer.setLocalDescription(offerDesc);
+
+      await setDoc(doc(db, "calls", callId), {
+        callId,
+        callerId: deviceId,
+        callerName: myName,
+        calleeId: activeChatPeerId,
+        mode,
+        status: "ringing",
+        offer: { type: offerDesc.type, sdp: offerDesc.sdp },
+        createdAt: Date.now()
+      });
+
+      rtcPeer.onicecandidate = async (ev) => {
+        if (ev.candidate && currentCallDocId) {
+          await addDoc(collection(db, "calls", currentCallDocId, "callerCandidates"), ev.candidate.toJSON());
+        }
+      };
+
+      onSnapshot(doc(db, "calls", callId), async (snap) => {
+        if (!snap.exists()) return;
+        const d = snap.data();
+        if (d.status === "ended" || d.status === "rejected") {
+          cleanupWebrtcCall();
+        } else if (d.answer && rtcPeer && !rtcPeer.currentRemoteDescription) {
+          await rtcPeer.setRemoteDescription(new RTCSessionDescription(d.answer));
+          document.getElementById("callStatusText").innerText = "🟢 Connected (Free Call)";
+        }
+      });
+
+      onSnapshot(collection(db, "calls", callId, "calleeCandidates"), (snap) => {
+        snap.docChanges().forEach(async (chg) => {
+          if (chg.type === "added" && rtcPeer) {
+            try { await rtcPeer.addIceCandidate(new RTCIceCandidate(chg.doc.data())); } catch (e) {}
+          }
+        });
+      });
+    };
+
+    // Listen for incoming calls for this user
+    try {
+      onSnapshot(collection(db, "calls"), (snap) => {
+        snap.docs.forEach(d => {
+          const c = d.data();
+          if (c.calleeId === deviceId && c.status === "ringing" && (Date.now() - (c.createdAt || 0) < 45000)) {
+            if (!currentCallDocId) {
+              incomingCallData = c;
+              document.getElementById("incCallTitle").innerText = (c.mode === "video" ? "📹 Video Call: " : "📞 Audio Call: ") + (c.callerName || "Friend");
+              document.getElementById("incomingCallToast").style.display = "block";
+            }
+          }
+        });
+      });
+    } catch (e) {}
+
+    window.acceptIncomingCall = async () => {
+      if (!incomingCallData) return;
+      const c = incomingCallData;
+      document.getElementById("incomingCallToast").style.display = "none";
+      const isVideo = c.mode === "video";
+      try {
+        localCallStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isVideo });
+      } catch (err) {
+        return alert("Please allow Microphone/Camera permission to answer call.");
+      }
+
+      currentCallDocId = c.callId;
+      document.getElementById("webrtcCallModal").style.display = "flex";
+      document.getElementById("callPeerName").innerText = c.callerName || "Friend";
+      document.getElementById("callStatusText").innerText = "🟢 Connected (Free Call)";
+      document.getElementById("localVideo").style.display = isVideo ? "block" : "none";
+      document.getElementById("localVideo").srcObject = localCallStream;
+
+      rtcPeer = new RTCPeerConnection(rtcServers);
+      localCallStream.getTracks().forEach(t => rtcPeer.addTrack(t, localCallStream));
+
+      const remoteStream = new MediaStream();
+      document.getElementById("remoteVideo").srcObject = remoteStream;
+      rtcPeer.ontrack = (e) => {
+        e.streams[0].getTracks().forEach(t => remoteStream.addTrack(t));
+      };
+
+      rtcPeer.onicecandidate = async (ev) => {
+        if (ev.candidate && currentCallDocId) {
+          await addDoc(collection(db, "calls", currentCallDocId, "calleeCandidates"), ev.candidate.toJSON());
+        }
+      };
+
+      await rtcPeer.setRemoteDescription(new RTCSessionDescription(c.offer));
+      const ansDesc = await rtcPeer.createAnswer();
+      await rtcPeer.setLocalDescription(ansDesc);
+
+      await updateDoc(doc(db, "calls", c.callId), {
+        status: "connected",
+        answer: { type: ansDesc.type, sdp: ansDesc.sdp }
+      });
+
+      onSnapshot(collection(db, "calls", c.callId, "callerCandidates"), (snap) => {
+        snap.docChanges().forEach(async (chg) => {
+          if (chg.type === "added" && rtcPeer) {
+            try { await rtcPeer.addIceCandidate(new RTCIceCandidate(chg.doc.data())); } catch (e) {}
+          }
+        });
+      });
+
+      onSnapshot(doc(db, "calls", c.callId), (snap) => {
+        if (snap.exists() && snap.data().status === "ended") cleanupWebrtcCall();
+      });
+    };
+
+    window.rejectIncomingCall = async () => {
+      document.getElementById("incomingCallToast").style.display = "none";
+      if (incomingCallData) {
+        await updateDoc(doc(db, "calls", incomingCallData.callId), { status: "rejected" });
+        incomingCallData = null;
+      }
+    };
+
+    window.endWebrtcCall = async () => {
+      if (currentCallDocId) {
+        try { await updateDoc(doc(db, "calls", currentCallDocId), { status: "ended" }); } catch (e) {}
+      }
+      cleanupWebrtcCall();
+    };
+
+    function cleanupWebrtcCall() {
+      if (localCallStream) {
+        localCallStream.getTracks().forEach(t => t.stop());
+        localCallStream = null;
+      }
+      if (rtcPeer) {
+        rtcPeer.close();
+        rtcPeer = null;
+      }
+      currentCallDocId = null;
+      incomingCallData = null;
+      document.getElementById("webrtcCallModal").style.display = "none";
+    }
+
+    window.toggleCallMic = () => {
+      if (!localCallStream) return;
+      isMicMuted = !isMicMuted;
+      localCallStream.getAudioTracks().forEach(t => t.enabled = !isMicMuted);
+      document.getElementById("muteMicBtn").innerText = isMicMuted ? "🔇" : "🎤";
+    };
+
+    window.toggleCallCam = () => {
+      if (!localCallStream) return;
+      isCamOff = !isCamOff;
+      localCallStream.getVideoTracks().forEach(t => t.enabled = !isCamOff);
+      document.getElementById("toggleCamBtn").innerText = isCamOff ? "🚫" : "📹";
+    };
+
+    // --- PERMANENT FRIENDS GROUP CHAT (ONLY ADDED FRIENDS) ---
+    let savedGroupMembers = JSON.parse(localStorage.getItem("swiftcart_group_members") || "[]");
+    let allGroupMsgs = [];
+
+    try {
+      onSnapshot(collection(db, "friend_group_msgs"), (snap) => {
+        allGroupMsgs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        if (document.getElementById("friendsGroupModal")?.style.display === "block") {
+          renderFriendsGroupMessages();
+        }
+      });
+    } catch (e) {}
+
+    window.openFriendsGroupModal = () => {
+      document.getElementById("friendsGroupModal").style.display = "block";
+      renderGroupEligibleFriends();
+      renderFriendsGroupMessages();
+    };
+
+    window.toggleGroupMembersBox = () => {
+      const b = document.getElementById("groupMembersManageBox");
+      b.style.display = b.style.display === "none" ? "block" : "none";
+      renderGroupEligibleFriends();
+    };
+
+    window.toggleFriendInGroup = (fid, fname) => {
+      const idx = savedGroupMembers.findIndex(m => m.id === fid);
+      if (idx >= 0) {
+        savedGroupMembers.splice(idx, 1);
+      } else {
+        savedGroupMembers.push({ id: fid, name: fname });
+      }
+      localStorage.setItem("swiftcart_group_members", JSON.stringify(savedGroupMembers));
+      renderGroupEligibleFriends();
+      renderFriendsGroupMessages();
+    };
+
+    function renderGroupEligibleFriends() {
+      const box = document.getElementById("groupEligibleFriendsList");
+      if (!box) return;
+      // Collect accepted friends + local members
+      const candidates = new Map();
+      (typeof allFriendReqs !== "undefined" ? allFriendReqs : []).forEach(r => {
+        if (r.status === "accepted") {
+          const fid = r.fromId === deviceId ? r.toId : r.fromId;
+          const fname = r.fromId === deviceId ? r.toName : r.fromName;
+          if (fid) candidates.set(fid, fname || "Friend");
+        }
+      });
+      allPosts.forEach(p => {
+        if (p.deviceId && p.deviceId !== deviceId && p.type !== "Business") {
+          candidates.set(p.deviceId, p.name || "Member");
+        }
+      });
+
+      if (candidates.size === 0) {
+        box.innerHTML = "<div style='font-size:12px;'>No friends found yet. Add friends first!</div>";
+        return;
+      }
+      let html = "";
+      candidates.forEach((fname, fid) => {
+        const isAdded = savedGroupMembers.some(m => m.id === fid);
+        const safeN = fname.replace(/'/g, "");
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(148,163,184,0.25);">
+          <span style="font-size:13px;">👤 ${fname}</span>
+          <button type="button" onclick="toggleFriendInGroup('${fid}', '${safeN}')" style="width:auto;margin:0;padding:4px 10px;border-radius:6px;font-size:11px;background:${isAdded ? '#ef4444' : '#16a34a'};color:#fff;">
+            ${isAdded ? '✖ Remove' : '➕ Add'}
+          </button>
+        </div>`;
+      });
+      box.innerHTML = html;
+    }
+
+    function renderFriendsGroupMessages() {
+      const box = document.getElementById("friendsGroupMessages");
+      if (!box) return;
+      const allowedIds = new Set([deviceId, ...savedGroupMembers.map(m => m.id)]);
+      const visible = allGroupMsgs.filter(m =>
+        allowedIds.has(m.senderId) && (Array.isArray(m.allowedMembers) ? m.allowedMembers.includes(deviceId) : true)
+      );
+      if (visible.length === 0) {
+        box.innerHTML = "<div style='text-align:center;opacity:0.75;margin:auto;font-size:13px;'>👥 Only your added friends can chat here.<br>Tap <b>➕ Members</b> above once to add friends permanently!</div>";
+        return;
+      }
+      box.innerHTML = visible.map(m => {
+        const isMe = m.senderId === deviceId;
+        return `<div style="align-self:${isMe ? 'flex-end' : 'flex-start'};max-width:80%;padding:8px 12px;border-radius:12px;background:${isMe ? '#2563eb' : '#334155'};color:#fff;font-size:13px;">
+          <div style="font-size:10px;opacity:0.8;font-weight:bold;margin-bottom:2px;">${isMe ? 'You' : (m.senderName || 'Friend')}</div>
+          <div>${m.text}</div>
+        </div>`;
+      }).join("");
+      box.scrollTop = box.scrollHeight;
+    }
+
+    window.sendFriendsGroupMsg = async () => {
+      const inp = document.getElementById("friendsGrpInput");
+      const txt = (inp.value || "").trim();
+      if (!txt) return;
+      const myName = (typeof userProfile !== "undefined" && userProfile.name) ? userProfile.name : "Friend";
+      const allowedMembers = [deviceId, ...savedGroupMembers.map(m => m.id)];
+      inp.value = "";
+      await addDoc(collection(db, "friend_group_msgs"), {
+        senderId: deviceId,
+        senderName: myName,
+        text: txt,
+        allowedMembers,
+        createdAt: Date.now()
+      });
+    };
+
+    // --- 3 KM LIVE AUDIO TABLE (10-20 PEOPLE VOICE + LIVE GROUP CHAT) ---
+    let liveSeats = [];
+    let liveTableChats = [];
+    let liveSeatTimer = null;
+
+    try {
+      onSnapshot(collection(db, "live_table_seats"), (snap) => {
+        const now = Date.now();
+        liveSeats = snap.docs.map(d => d.data()).filter(u => (now - (u.lastSeen || 0)) < 45000);
+        if (document.getElementById("liveTableModal")?.style.display === "block") {
+          renderLiveTableSeats();
+        }
+      });
+      onSnapshot(collection(db, "live_table_chat"), (snap) => {
+        liveTableChats = snap.docs.map(d => d.data()).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)).slice(-40);
+        if (document.getElementById("liveTableModal")?.style.display === "block") {
+          renderLiveTableChats();
+        }
+      });
+    } catch (e) {}
+
+    window.openLiveAudioTable = async () => {
+      if (!myLat || !myLng) return alert("Please allow GPS location to join your 3 KM Live Table.");
+      document.getElementById("liveTableModal").style.display = "block";
+
+      // Join 3 KM local voice room via free Jitsi Audio Bridge
+      const gridKey = Math.round(myLat * 35) + "_" + Math.round(myLng * 35);
+      const roomName = "SwiftCart_LiveTable_3KM_" + gridKey;
+      const frame = document.getElementById("jitsiAudioFrame");
+      if (frame && !frame.src.includes(roomName)) {
+        frame.src = `https://meet.jit.si/${roomName}#config.startWithAudioMuted=false&config.startWithVideoMuted=true&config.prejoinPageEnabled=false&interfaceConfig.TOOLBAR_BUTTONS=["microphone","hangup"]`;
+      }
+
+      const pingSeat = async () => {
+        const myName = (typeof userProfile !== "undefined" && userProfile.name) ? userProfile.name : "Neighbor";
+        await setDoc(doc(db, "live_table_seats", deviceId), {
+          deviceId,
+          name: myName,
+          lat: myLat,
+          lng: myLng,
+          lastSeen: Date.now()
+        });
+      };
+      await pingSeat();
+      liveSeatTimer = setInterval(pingSeat, 15000);
+      renderLiveTableSeats();
+      renderLiveTableChats();
+    };
+
+    window.leaveLiveAudioTable = async () => {
+      if (liveSeatTimer) clearInterval(liveSeatTimer);
+      const frame = document.getElementById("jitsiAudioFrame");
+      if (frame) frame.src = "about:blank";
+      try { await deleteDoc(doc(db, "live_table_seats", deviceId)); } catch (e) {}
+      document.getElementById("liveTableModal").style.display = "none";
+    };
+
+    function renderLiveTableSeats() {
+      const grid = document.getElementById("liveTableSeatsGrid");
+      const badge = document.getElementById("liveTableCountBadge");
+      if (!grid || !myLat) return;
+      const nearbySeats = liveSeats.filter(u => getDistanceKM(myLat, myLng, u.lat, u.lng) <= 3).slice(0, 20);
+      if (badge) badge.innerText = `🟢 ${nearbySeats.length}/20 Seated`;
+      if (nearbySeats.length === 0) {
+        grid.innerHTML = "<div style='grid-column:1/-1;color:#cbd5e1;text-align:center;font-size:12px;'>🪑 Sitting at table... Invite neighbors within 3 KM to talk!</div>";
+        return;
+      }
+      grid.innerHTML = nearbySeats.map(u => `
+        <div class="seat-item">
+          <div class="seat-av">🎙️</div>
+          <div style="font-size:11px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:68px;">${u.name || "User"}</div>
+          <div style="font-size:9px;color:#86efac;">Listening</div>
+        </div>
+      `).join("");
+    }
+
+    function renderLiveTableChats() {
+      const box = document.getElementById("liveTableChatBox");
+      if (!box || !myLat) return;
+      const nearbyMsgs = liveTableChats.filter(m => !m.lat || getDistanceKM(myLat, myLng, m.lat, m.lng) <= 3);
+      if (nearbyMsgs.length === 0) {
+        box.innerHTML = "<div style='text-align:center;opacity:0.75;margin:auto;font-size:12px;'>💬 Say hello to everyone sitting at the 3 KM Live Table!</div>";
+        return;
+      }
+      box.innerHTML = nearbyMsgs.map(m => {
+        const isMe = m.senderId === deviceId;
+        return `<div style="font-size:12px;padding:5px 8px;border-radius:8px;background:${isMe ? 'rgba(37,99,235,0.2)' : 'rgba(148,163,184,0.15)'};">
+          <strong style="color:#38bdf8;">${m.senderName || 'Neighbor'}:</strong> ${m.text}
+        </div>`;
+      }).join("");
+      box.scrollTop = box.scrollHeight;
+    }
+
+    window.sendLiveTableChat = async () => {
+      const inp = document.getElementById("liveTableChatInp");
+      const txt = (inp.value || "").trim();
+      if (!txt) return;
+      const myName = (typeof userProfile !== "undefined" && userProfile.name) ? userProfile.name : "Neighbor";
+      inp.value = "";
+      await addDoc(collection(db, "live_table_chat"), {
+        senderId: deviceId,
+        senderName: myName,
+        text: txt,
+        lat: myLat,
+        lng: myLng,
+        createdAt: Date.now()
+      });
+    };
+
+    // Inject "Live Audio Table (3 KM)" button on Home & "Friends Group" card in Personal tab
+    (function setupStep4EntryButtons() {
+      const hv = document.getElementById("homeView");
+      if (hv && !document.getElementById("liveTableEntryBtn")) {
+        const liveBtn = document.createElement("div");
+        liveBtn.id = "liveTableEntryBtn";
+        liveBtn.className = "box";
+        liveBtn.style.cssText = "background:linear-gradient(135deg,#1d4ed8,#4338ca);color:#fff;border:none;display:flex;justify-content:space-between;align-items:center;cursor:pointer;margin-bottom:10px;";
+        liveBtn.onclick = () => openLiveAudioTable();
+        liveBtn.innerHTML = `
+          <div>
+            <div style="font-weight:bold;font-size:14px;">🎙️ Live Audio Table (3 KM)</div>
+            <div style="font-size:11px;opacity:0.9;">10–20 neighbors live voice talk + group chat (Free)</div>
+          </div>
+          <span style="background:#22c55e;color:#fff;padding:6px 10px;border-radius:8px;font-weight:bold;font-size:12px;">Join Table</span>
+        `;
+        hv.prepend(liveBtn);
+      }
+
+      const privBar = document.getElementById("personalPrivacyBar");
+      if (privBar && !document.getElementById("friendsGroupEntryCard")) {
+        const grpCard = document.createElement("div");
+        grpCard.id = "friendsGroupEntryCard";
+        grpCard.className = "wa-member-row";
+        grpCard.style.borderLeft = "4px solid #16a34a";
+        grpCard.onclick = () => openFriendsGroupModal();
+        grpCard.innerHTML = `
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="wa-av" style="background:#16a34a;">👥</div>
+            <div>
+              <div style="font-weight:bold;font-size:14px;">Friends Group Chat</div>
+              <div style="font-size:11px;opacity:0.8;">Permanent private group (Added friends only)</div>
+            </div>
+          </div>
+          <span style="background:#16a34a;color:#fff;padding:5px 10px;border-radius:8px;font-size:11px;font-weight:bold;">Open</span>
+        `;
+        privBar.insertAdjacentElement("afterend", grpCard);
+      }
+    })();
+
     // Initialize everything cleanly
     applyLang();
     loadProfileUI();
@@ -2738,6 +3327,83 @@
       <span style="width:50px;"></span>
     </div>
     <div id="userPublicBody" class="box" style="text-align:center;padding:20px 14px;"></div>
+  </div>
+  <!-- INCOMING CALL BANNER -->
+  <div id="incomingCallToast" class="incoming-toast">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div>
+        <div id="incCallTitle" style="font-weight:bold;font-size:14px;">📞 Incoming Call...</div>
+        <div id="incCallSub" style="font-size:11px;color:#94a3b8;">SwiftCart Free Call</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" onclick="acceptIncomingCall()" style="width:auto;margin:0;padding:8px 12px;background:#22c55e;color:#fff;border-radius:8px;font-weight:bold;">✅ Answer</button>
+        <button type="button" onclick="rejectIncomingCall()" style="width:auto;margin:0;padding:8px 10px;background:#ef4444;color:#fff;border-radius:8px;font-weight:bold;">✖</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1-ON-1 FREE AUDIO / VIDEO CALL SCREEN -->
+  <div id="webrtcCallModal" class="call-screen">
+    <video id="remoteVideo" class="remote-vid" autoplay playsinline></video>
+    <video id="localVideo" class="local-vid" autoplay playsinline muted></video>
+    <div class="call-overlay-ui">
+      <div style="text-align:center;margin-top:20px;background:rgba(15,23,42,0.65);padding:10px 20px;border-radius:16px;">
+        <div id="callPeerName" style="font-size:20px;font-weight:bold;">Calling...</div>
+        <div id="callStatusText" style="font-size:13px;color:#86efac;margin-top:4px;">Connecting free call...</div>
+      </div>
+      <div class="call-ctrl-bar">
+        <button type="button" id="muteMicBtn" class="call-ctrl-btn" onclick="toggleCallMic()" style="background:#334155;color:#fff;">🎤</button>
+        <button type="button" id="toggleCamBtn" class="call-ctrl-btn" onclick="toggleCallCam()" style="background:#334155;color:#fff;">📹</button>
+        <button type="button" class="call-ctrl-btn" onclick="endWebrtcCall()" style="background:#ef4444;color:#fff;">📵</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PERMANENT FRIENDS GROUP CHAT MODAL -->
+  <div id="friendsGroupModal" class="full-page-modal" style="z-index:9920;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <button type="button" onclick="document.getElementById('friendsGroupModal').style.display='none'" style="width:auto;margin:0;padding:6px 12px;background:#334155;color:#fff;border-radius:8px;">⬅ Back</button>
+      <strong style="font-size:15px;">👥 Friends Group Chat</strong>
+      <button type="button" onclick="toggleGroupMembersBox()" style="width:auto;margin:0;padding:6px 10px;background:#2563eb;color:#fff;border-radius:8px;font-size:11px;">➕ Members</button>
+    </div>
+
+    <div id="groupMembersManageBox" class="box" style="display:none;border:2px solid #2563eb;">
+      <div style="font-weight:bold;font-size:13px;margin-bottom:6px;">Add / Manage Group Friends (Permanent)</div>
+      <div style="font-size:11px;opacity:0.8;margin-bottom:8px;">Once added, only your group friends can see & chat here.</div>
+      <div id="groupEligibleFriendsList"></div>
+    </div>
+
+    <div id="friendsGroupMessages" class="box" style="height:56vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
+
+    <div style="display:flex;gap:6px;">
+      <input type="text" id="friendsGrpInput" placeholder="Message your Friends Group..." style="margin:0;flex:1;">
+      <button type="button" onclick="sendFriendsGroupMsg()" style="width:auto;margin:0;padding:0 16px;background:#16a34a;color:#fff;font-weight:bold;border-radius:8px;">Send</button>
+    </div>
+  </div>
+
+  <!-- 3 KM LIVE AUDIO TABLE MODAL (10-20 PEOPLE VOICE + GROUP CHAT) -->
+  <div id="liveTableModal" class="full-page-modal" style="z-index:9930;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <button type="button" onclick="leaveLiveAudioTable()" style="width:auto;margin:0;padding:6px 12px;background:#ef4444;color:#fff;border-radius:8px;font-weight:bold;">🚪 Leave Table</button>
+      <strong style="font-size:15px;">🎙️ Live Table (3 KM)</strong>
+      <span id="liveTableCountBadge" style="background:#16a34a;color:#fff;padding:4px 8px;border-radius:12px;font-size:11px;font-weight:bold;">Live</span>
+    </div>
+
+    <div style="font-size:12px;font-weight:bold;margin-bottom:6px;">🪑 Seated Around Table (Speak & Listen Live - Free)</div>
+    <div id="liveTableSeatsGrid" class="table-seats-grid"></div>
+
+    <!-- Free Multi-User Audio Bridge (10-20 users supported) -->
+    <div id="liveAudioBridgeBox" class="box" style="padding:6px;margin-bottom:10px;overflow:hidden;">
+      <div style="font-size:11px;font-weight:bold;color:#16a34a;margin-bottom:4px;">🔊 Live Voice Room (Tap Unmute below to speak)</div>
+      <iframe id="jitsiAudioFrame" allow="microphone; autoplay" style="width:100%;height:130px;border:none;border-radius:8px;background:#0f172a;"></iframe>
+    </div>
+
+    <div style="font-weight:bold;font-size:13px;margin-bottom:6px;">💬 Live Table Group Chat</div>
+    <div id="liveTableChatBox" class="box" style="height:28vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+    <div style="display:flex;gap:6px;">
+      <input type="text" id="liveTableChatInp" placeholder="Type in Live Table group chat..." style="margin:0;flex:1;">
+      <button type="button" onclick="sendLiveTableChat()" style="width:auto;margin:0;padding:0 16px;background:#2563eb;color:#fff;font-weight:bold;border-radius:8px;">Send</button>
+    </div>
   </div>
 </body>
 </html>
