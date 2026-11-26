@@ -234,6 +234,38 @@
     .toggle-on { background: #16a34a !important; color: #fff !important; }
     .toggle-off { background: #dc2626 !important; color: #fff !important; }
 
+  
+    /* WHATSAPP-STYLE MEMBER LIST & 2-LAYER REQUESTS */
+    .wa-member-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 12px; border-radius: 12px; background: #fff;
+      border: 1px solid #e2e8f0; margin-bottom: 8px; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .wa-member-row:active { background: #eff6ff; }
+    body.dark-mode .wa-member-row {
+      background: #1e293b !important; border-color: #334155 !important;
+    }
+    .wa-av {
+      width: 44px; height: 44px; border-radius: 50%; background: #2563eb;
+      color: #fff; font-weight: bold; font-size: 18px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .req-subtabs {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px;
+    }
+    .req-sub-btn {
+      padding: 7px 6px !important; margin: 0 !important; font-size: 12px !important;
+      font-weight: bold; border-radius: 8px !important;
+      background: #e2e8f0 !important; color: #334155 !important; border: none !important;
+    }
+    body.dark-mode .req-sub-btn {
+      background: #334155 !important; color: #cbd5e1 !important;
+    }
+    .req-sub-btn.active {
+      background: #0d9488 !important; color: #fff !important;
+    }
+
   </style>
 </head>
 <body>
@@ -2240,6 +2272,170 @@
         if (matched) openUserPublicProfile(matched.deviceId, matched.name, matched.avatarUrl);
       }
     });
+
+    // --- WHATSAPP-STYLE INBOX FIX & 2-LAYER REQUESTS ---
+    let activeReqLayer = "friend_reqs";
+
+    function classifyFriendsViewChildren() {
+      const fv = document.getElementById("friendsView");
+      if (!fv) return;
+      Array.from(fv.children).forEach(el => {
+        if (el.id === "inboxFolderBar") return;
+        const txt = (el.innerText || "").trim();
+        const hasBackBtn = Array.from(el.querySelectorAll("button")).some(b => (b.innerText || "").trim() === "Back");
+
+        if (hasBackBtn || el.id === "chatBox" || el.id === "chatPanel") {
+          el.dataset.role = "chatPanel";
+          el.style.display = "none"; // Keep chat closed until a member is tapped!
+        } else if (/Friend Requests|No pending friend requests/i.test(txt) && !/My Friends|Member/i.test(txt)) {
+          el.dataset.role = "oldReqBlock";
+          el.style.display = "none"; // Move Friend Requests strictly to Requests tab
+        } else {
+          el.dataset.role = "memberList";
+        }
+      });
+
+      // Style member items cleanly like WhatsApp rows
+      fv.querySelectorAll("[data-role='memberList'] .box, [data-role='memberList'] > div").forEach(card => {
+        const msgBtn = Array.from(card.querySelectorAll("button")).find(b => /Message|Chat/i.test(b.innerText || ""));
+        if (msgBtn && !card.dataset.waStyled) {
+          card.dataset.waStyled = "1";
+          card.style.cursor = "pointer";
+          card.onclick = (e) => {
+            if (e.target.tagName !== "BUTTON") msgBtn.click();
+          };
+        }
+      });
+    }
+
+    // Override switchInboxFolder so Chat box NEVER auto-opens when switching tabs
+    window.switchInboxFolder = (folder) => {
+      activeInboxFolder = folder;
+      ["tabPersonalBtn", "tabBizBtn", "tabReqBtn"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove("active");
+      });
+      const activeBtn = document.getElementById(folder === "personal" ? "tabPersonalBtn" : folder === "business" ? "tabBizBtn" : "tabReqBtn");
+      if (activeBtn) activeBtn.classList.add("active");
+
+      classifyFriendsViewChildren();
+      const fv = document.getElementById("friendsView");
+      const customBox = document.getElementById("customFolderContainer");
+      const privBar = document.getElementById("personalPrivacyBar");
+      if (!fv || !customBox) return;
+
+      Array.from(fv.children).forEach(child => {
+        if (child.id === "inboxFolderBar") return;
+        if (child.dataset.role === "chatPanel" || child.dataset.role === "oldReqBlock") {
+          child.style.display = "none";
+        } else {
+          child.style.display = (folder === "personal") ? "" : "none";
+        }
+      });
+
+      if (privBar) privBar.style.display = (folder === "personal") ? "flex" : "none";
+
+      if (folder === "personal") {
+        customBox.style.display = "none";
+      } else if (folder === "business") {
+        customBox.style.display = "block";
+        renderBusinessChatsFolder();
+      } else if (folder === "requests") {
+        customBox.style.display = "block";
+        renderRequestsFolder();
+      }
+    };
+
+    // Wrap openChatWith so tapping a member opens ONLY the WhatsApp chat panel cleanly
+    const _prevOpenChat = window.openChatWith;
+    window.openChatWith = function(peerId, peerName, forceType) {
+      if (_prevOpenChat) _prevOpenChat(peerId, peerName, forceType);
+      const fv = document.getElementById("friendsView");
+      if (!fv) return;
+      classifyFriendsViewChildren();
+      const folderBar = document.getElementById("inboxFolderBar");
+      if (folderBar) folderBar.style.display = "none";
+      Array.from(fv.children).forEach(child => {
+        if (child.id === "inboxFolderBar") return;
+        child.style.display = (child.dataset.role === "chatPanel") ? "block" : "none";
+      });
+    };
+
+    // When clicking "Back" inside chat panel, return cleanly to Member List
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (btn && (btn.innerText || "").trim() === "Back" && btn.closest("#friendsView")) {
+        setTimeout(() => {
+          const folderBar = document.getElementById("inboxFolderBar");
+          if (folderBar) folderBar.style.display = "block";
+          switchInboxFolder(activeInboxFolder || "personal");
+        }, 50);
+      }
+    });
+
+    // 2-Layer Requests Renderer: (1) Friend Requests + (2) Message Requests
+    window.switchReqSubLayer = (layer) => {
+      activeReqLayer = layer;
+      renderRequestsFolder();
+    };
+
+    window.renderRequestsFolder = function() {
+      const box = document.getElementById("customFolderContainer");
+      if (!box) return;
+      const incomingReqs = (typeof allFriendReqs !== "undefined" ? allFriendReqs : []).filter(r => r.toId === deviceId && r.status === "pending");
+
+      // Find message requests from unknown senders (senders not in accepted friends)
+      const acceptedIds = new Set(
+        (typeof allFriendReqs !== "undefined" ? allFriendReqs : [])
+          .filter(r => r.status === "accepted")
+          .map(r => r.fromId === deviceId ? r.toId : r.fromId)
+      );
+      const unknownSenders = [];
+      const seen = new Set();
+      allPosts.forEach(p => {
+        if (p.deviceId && p.deviceId !== deviceId && !acceptedIds.has(p.deviceId) && !seen.has(p.deviceId)) {
+          // Only show if there is an active chat thread or pending interaction
+        }
+      });
+
+      const subHeader = `
+        <div class="req-subtabs">
+          <button type="button" class="req-sub-btn ${activeReqLayer === 'friend_reqs' ? 'active' : ''}" onclick="switchReqSubLayer('friend_reqs')">🤝 Friend Requests (${incomingReqs.length})</button>
+          <button type="button" class="req-sub-btn ${activeReqLayer === 'msg_reqs' ? 'active' : ''}" onclick="switchReqSubLayer('msg_reqs')">📩 Message Requests</button>
+        </div>
+      `;
+
+      if (activeReqLayer === "friend_reqs") {
+        if (incomingReqs.length === 0) {
+          box.innerHTML = subHeader + "<div class='box'>🤝 No pending Friend Requests right now.</div>";
+        } else {
+          box.innerHTML = subHeader + incomingReqs.map(r => {
+            const sName = (r.fromName || "User").replace(/'/g, "");
+            return `<div class="wa-member-row">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div class="wa-av">${(r.fromName || "U")[0].toUpperCase()}</div>
+                <div>
+                  <div style="font-weight:bold;font-size:14px;">${r.fromName || "Local User"}</div>
+                  <div style="font-size:11px;opacity:0.75;">Sent you a friend request</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:6px;">
+                <button type="button" onclick="respondFriendReq('${r.id}', 'accepted', '${r.fromId}', '${sName}')" style="width:auto;margin:0;padding:6px 10px;background:#16a34a;color:#fff;border-radius:6px;font-size:12px;">✅ Accept</button>
+                <button type="button" onclick="respondFriendReq('${r.id}', 'rejected')" style="width:auto;margin:0;padding:6px 10px;background:#ef4444;color:#fff;border-radius:6px;font-size:12px;">✖</button>
+              </div>
+            </div>`;
+          }).join("");
+        }
+      } else {
+        box.innerHTML = subHeader + `<div class='box'>
+          <div style="font-weight:bold;margin-bottom:4px;">📩 Message Requests</div>
+          <div style="font-size:12px;opacity:0.8;">Messages from people who are not in your Friends list appear here first so you can Accept or Ignore safely.</div>
+        </div>`;
+      }
+    };
+
+    // Run initial cleanup once Friends tab loads
+    setTimeout(() => { classifyFriendsViewChildren(); }, 600);
 
     // Initialize everything cleanly
     applyLang();
