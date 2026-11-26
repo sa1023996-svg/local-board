@@ -513,6 +513,95 @@
     }
     .fb-glance-row:last-child { border-bottom: none; }
 
+  
+    /* SLIM BOTTOM INSTALL / NOTICE BANNER RIGHT ABOVE BOTTOM NAV */
+    .pwa-install-bar {
+      position: fixed !important;
+      bottom: 64px !important;
+      left: 10px !important;
+      right: 10px !important;
+      z-index: 9450 !important;
+      margin: 0 !important;
+      padding: 7px 10px !important;
+      border-radius: 10px !important;
+      background: linear-gradient(135deg, #0f766e, #1d4ed8) !important;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.35) !important;
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+    .pwa-install-bar.banner-hiding {
+      opacity: 0 !important;
+      transform: translateY(14px);
+      pointer-events: none;
+    }
+
+    /* FIX WHITE-ON-WHITE PILLS IN FRIENDS & ALL TABS ON DARK MODE */
+    body.dark-mode #friendsView [style*="border-radius"],
+    body.dark-mode #friendsView .pill,
+    body.dark-mode #friendsView .badge,
+    body.dark-mode #friendsView h3,
+    body.dark-mode #friendsView h4 {
+      background-color: #334155 !important;
+      color: #f8fafc !important;
+      border-color: #475569 !important;
+    }
+    body.dark-mode #friendsView .inbox-tabs,
+    body.dark-mode #friendsView #inboxFolderBar,
+    body.dark-mode #friendsView #customFolderContainer {
+      background-color: transparent !important;
+    }
+    body.dark-mode #friendsView .inbox-tab-btn {
+      background-color: #334155 !important;
+      color: #e2e8f0 !important;
+    }
+    body.dark-mode #friendsView .inbox-tab-btn.active {
+      background-color: #2563eb !important;
+      color: #ffffff !important;
+    }
+    body.dark-mode #friendsView .toggle-on {
+      background-color: #16a34a !important;
+      color: #ffffff !important;
+    }
+    body.dark-mode #friendsView .toggle-off {
+      background-color: #dc2626 !important;
+      color: #ffffff !important;
+    }
+
+    /* DRAGGABLE FLOATING CIRCULAR LIVE CALL BUTTON (HOME & FRIENDS ONLY) */
+    #floatingLiveCallBtn {
+      display: none;
+      position: fixed;
+      right: 18px;
+      bottom: 135px;
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #38bdf8, #2563eb);
+      color: #ffffff;
+      border: 2.5px solid rgba(255,255,255,0.85);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.55);
+      z-index: 9480;
+      align-items: center;
+      justify-content: center;
+      font-size: 23px;
+      cursor: grab;
+      user-select: none;
+      touch-action: none;
+    }
+    #floatingLiveCallBtn:active { cursor: grabbing; transform: scale(0.95); }
+    #floatingLiveCallBtn .live-dot {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #22c55e;
+      border: 2px solid #0f172a;
+    }
+    body.hide-bottom-nav #floatingLiveCallBtn {
+      display: none !important;
+    }
+
   </style>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" href="logo.png">
@@ -4301,6 +4390,187 @@
       }
     });
 
+    // --- POLISH: SLIM BOTTOM BANNER, WHITE-PILL DARK FIX & DRAGGABLE FLOATING CALL BUTTON ---
+    let activeLiveTableMode = "public"; // "public" on Home, "friends" on Friends
+
+    // 1) Make Install / Warning Banner slim at bottom (right above nav) & auto-hide after 8s
+    function positionSlimBottomBanner() {
+      const bar = document.getElementById("pwaInstallBanner");
+      if (!bar) return;
+      if (bar.parentElement !== document.body) {
+        document.body.appendChild(bar);
+      }
+      bar.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+          <img src="logo.png" style="width:24px;height:24px;border-radius:6px;object-fit:cover;flex-shrink:0;" onerror="this.style.display='none'">
+          <div style="font-size:12px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📲 Install SwiftCart App</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+          <button type="button" onclick="triggerSwiftInstall()" style="width:auto;margin:0;padding:4px 10px;background:#fff !important;color:#0f766e !important;font-weight:bold;border-radius:6px;font-size:11px;border:none;">Install</button>
+          <button type="button" onclick="dismissSwiftInstall()" style="width:auto;margin:0;padding:3px 7px;background:rgba(0,0,0,0.28) !important;color:#fff !important;border:none;border-radius:6px;font-size:11px;">✖</button>
+        </div>
+      `;
+      setTimeout(() => {
+        if (bar && bar.style.display !== "none") {
+          bar.classList.add("banner-hiding");
+          setTimeout(() => { if (bar) bar.style.display = "none"; }, 400);
+        }
+      }, 8000);
+    }
+
+    // 2) Remove big rectangular Live Audio Table banner from Home & fix white pills in Friends
+    const _prevCleanPersonal6 = typeof cleanPersonalListUI === "function" ? cleanPersonalListUI : null;
+    cleanPersonalListUI = function() {
+      if (_prevCleanPersonal6) _prevCleanPersonal6();
+      const fv = document.getElementById("friendsView");
+      if (!fv) return;
+      fv.querySelectorAll("div, span, p, button").forEach(el => {
+        if (el.closest("#inboxFolderBar")) return;
+        const t = (el.innerText || "").trim();
+        if (t === "Friend Requests" || t.startsWith("No pending friend requests")) {
+          el.style.display = "none";
+        }
+        if (t.includes("My Friends") && document.body.classList.contains("dark-mode")) {
+          el.style.background = "#334155";
+          el.style.color = "#f8fafc";
+        }
+      });
+    };
+
+    // 3) Show Floating Call Icon ONLY on Home & Friends (Hide on Shops, Buy/Sell, Profile)
+    window.updateFloatingCallVisibility = () => {
+      const btn = document.getElementById("floatingLiveCallBtn");
+      if (!btn) return;
+      const tab = (typeof currentMainTab !== "undefined" ? currentMainTab : "home");
+      const isHiddenByOverlay = document.body.classList.contains("hide-bottom-nav");
+      if (!isHiddenByOverlay && (tab === "home" || tab === "friends")) {
+        btn.style.display = "flex";
+        btn.title = tab === "friends" ? "Friends Live Voice Table" : "Public 3 KM Live Audio Table";
+      } else {
+        btn.style.display = "none";
+      }
+    };
+
+    const _prevSwitchTab6 = typeof switchToMainTab === "function" ? switchToMainTab : null;
+    switchToMainTab = function(tab, pushHistory = true) {
+      if (_prevSwitchTab6) _prevSwitchTab6(tab, pushHistory);
+      updateFloatingCallVisibility();
+    };
+
+    const _prevSetBottom6 = typeof setBottomBarVisible === "function" ? setBottomBarVisible : null;
+    setBottomBarVisible = function(visible) {
+      if (_prevSetBottom6) _prevSetBottom6(visible);
+      updateFloatingCallVisibility();
+    };
+
+    // 4) Upgrade openLiveAudioTable to support BOTH Public (Home) & Friends-Only (Friends) modes
+    const _prevOpenLive6 = typeof window.openLiveAudioTable === "function" ? window.openLiveAudioTable : null;
+    window.openLiveAudioTable = async function(mode) {
+      activeLiveTableMode = mode || (currentMainTab === "friends" ? "friends" : "public");
+      if (_prevOpenLive6) await _prevOpenLive6();
+
+      const modal = document.getElementById("liveTableModal");
+      if (!modal) return;
+      const titleEl = modal.querySelector("strong");
+      if (titleEl) {
+        titleEl.innerText = activeLiveTableMode === "friends"
+          ? "👥 Friends Live Table"
+          : "🎙️ Public Live Table (3 KM)";
+      }
+
+      // Use private friend-group voice room when opened from Friends tab
+      if (activeLiveTableMode === "friends") {
+        const friendIds = [deviceId, ...(typeof savedGroupMembers !== "undefined" ? savedGroupMembers.map(m => m.id) : [])].sort();
+        const roomHash = btoa(friendIds.join("_")).replace(/[^a-zA-Z0-9]/g, "").slice(0, 18);
+        const frame = document.getElementById("jitsiAudioFrame");
+        if (frame) {
+          frame.src = `https://meet.jit.si/SwiftCart_FriendsTable_${roomHash}#config.startWithAudioMuted=false&config.startWithVideoMuted=true&config.prejoinPageEnabled=false&interfaceConfig.TOOLBAR_BUTTONS=["microphone","hangup"]`;
+        }
+      }
+    };
+
+    // 5) Make Floating Call Icon freely draggable anywhere on screen (Touch + Mouse)
+    (function initDraggableCallFab() {
+      const fab = document.getElementById("floatingLiveCallBtn");
+      if (!fab) return;
+
+      const savedPos = JSON.parse(localStorage.getItem("swiftcart_call_fab_pos") || "null");
+      if (savedPos && typeof savedPos.left === "number" && typeof savedPos.top === "number") {
+        fab.style.left = Math.min(window.innerWidth - 60, Math.max(6, savedPos.left)) + "px";
+        fab.style.top = Math.min(window.innerHeight - 125, Math.max(10, savedPos.top)) + "px";
+        fab.style.right = "auto";
+        fab.style.bottom = "auto";
+      }
+
+      let isDragging = false;
+      let hasMoved = false;
+      let startX = 0, startY = 0, origLeft = 0, origTop = 0;
+
+      const onStart = (clientX, clientY) => {
+        isDragging = true;
+        hasMoved = false;
+        const rect = fab.getBoundingClientRect();
+        startX = clientX;
+        startY = clientY;
+        origLeft = rect.left;
+        origTop = rect.top;
+      };
+
+      const onMove = (clientX, clientY) => {
+        if (!isDragging) return;
+        const dx = clientX - startX;
+        const dy = clientY - startY;
+        if (Math.abs(dx) > 6 || Math.abs(dy) > 6) hasMoved = true;
+        if (!hasMoved) return;
+        const newLeft = Math.min(window.innerWidth - 58, Math.max(4, origLeft + dx));
+        const newTop = Math.min(window.innerHeight - 122, Math.max(8, origTop + dy));
+        fab.style.left = newLeft + "px";
+        fab.style.top = newTop + "px";
+        fab.style.right = "auto";
+        fab.style.bottom = "auto";
+      };
+
+      const onEnd = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        if (hasMoved) {
+          const rect = fab.getBoundingClientRect();
+          localStorage.setItem("swiftcart_call_fab_pos", JSON.stringify({ left: rect.left, top: rect.top }));
+        } else {
+          const mode = (typeof currentMainTab !== "undefined" && currentMainTab === "friends") ? "friends" : "public";
+          openLiveAudioTable(mode);
+        }
+      };
+
+      fab.addEventListener("touchstart", (e) => {
+        if (e.touches[0]) onStart(e.touches[0].clientX, e.touches[0].clientY);
+      }, { passive: true });
+      fab.addEventListener("touchmove", (e) => {
+        if (e.touches[0]) onMove(e.touches[0].clientX, e.touches[0].clientY);
+      }, { passive: true });
+      fab.addEventListener("touchend", onEnd);
+
+      fab.addEventListener("mousedown", (e) => {
+        onStart(e.clientX, e.clientY);
+        const mm = (ev) => onMove(ev.clientX, ev.clientY);
+        const mu = () => {
+          window.removeEventListener("mousemove", mm);
+          window.removeEventListener("mouseup", mu);
+          onEnd();
+        };
+        window.addEventListener("mousemove", mm);
+        window.addEventListener("mouseup", mu);
+      });
+    })();
+
+    setTimeout(() => {
+      const oldLiveCard = document.getElementById("liveTableEntryBtn");
+      if (oldLiveCard) oldLiveCard.remove();
+      positionSlimBottomBanner();
+      cleanPersonalListUI();
+      updateFloatingCallVisibility();
+    }, 950);
+
     // Initialize everything cleanly
     applyLang();
     loadProfileUI();
@@ -4567,6 +4837,11 @@
       <span style="font-size:13px;font-weight:bold;">🌙 Dark / Light Theme</span>
       <button type="button" onclick="toggleDarkMode()" style="width:auto;margin:0;padding:6px 12px;background:#2563eb;color:#fff;border-radius:8px;font-size:12px;">Switch Theme</button>
     </div>
+  </div>
+  <!-- DRAGGABLE FLOATING LIVE CALL ICON (HOME = PUBLIC, FRIENDS = PRIVATE FRIENDS) -->
+  <div id="floatingLiveCallBtn" title="Live Audio Table">
+    <span class="live-dot"></span>
+    <span>📞</span>
   </div>
 </body>
 </html>
