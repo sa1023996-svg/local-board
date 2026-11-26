@@ -602,6 +602,40 @@
       display: none !important;
     }
 
+  
+    /* DRAG-TO-DISMISS TARGET CIRCLE AT BOTTOM */
+    #fabDismissZone {
+      display: none;
+      position: fixed;
+      bottom: 76px;
+      left: 50%;
+      transform: translateX(-50%) scale(0.85);
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.88);
+      color: #ffffff;
+      border: 2.5px solid rgba(255, 255, 255, 0.75);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+      z-index: 9475;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: bold;
+      transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+      pointer-events: none;
+    }
+    #fabDismissZone.visible {
+      display: flex;
+      transform: translateX(-50%) scale(1);
+    }
+    #fabDismissZone.hover-active {
+      background: #ef4444 !important;
+      border-color: #ffffff !important;
+      transform: translateX(-50%) scale(1.22) !important;
+      box-shadow: 0 0 22px rgba(239, 68, 68, 0.75) !important;
+    }
+
   </style>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" href="logo.png">
@@ -4571,6 +4605,192 @@
       updateFloatingCallVisibility();
     }, 950);
 
+    // --- STRICT TAB VISIBILITY, DRAG-TO-DISMISS FAB & CLEAN FRIENDS/PROFILE ---
+    function getActuallyVisibleTab() {
+      const isVis = (id) => {
+        const el = document.getElementById(id);
+        return el && el.style.display !== "none" && el.offsetParent !== null;
+      };
+      if (isVis("shopsView")) return "shops";
+      if (isVis("buySellView")) return "buysell";
+      if (isVis("friendsView")) return "friends";
+      if (isVis("profileView")) return "profile";
+      if (isVis("homeView")) return "home";
+      return typeof currentMainTab !== "undefined" ? currentMainTab : "home";
+    }
+
+    // Strictly show Floating Call Icon ONLY on Home & Friends (unless dismissed in this app session)
+    window.updateFloatingCallVisibility = () => {
+      const btn = document.getElementById("floatingLiveCallBtn");
+      if (!btn) return;
+      if (sessionStorage.getItem("swiftcart_call_fab_dismissed") === "1") {
+        btn.style.display = "none";
+        return;
+      }
+      const activeTab = getActuallyVisibleTab();
+      const isOverlayOpen = document.body.classList.contains("hide-bottom-nav");
+      if (!isOverlayOpen && (activeTab === "home" || activeTab === "friends")) {
+        btn.style.display = "flex";
+        btn.title = activeTab === "friends" ? "Friends Live Voice Table" : "Public 3 KM Live Audio Table";
+      } else {
+        btn.style.display = "none";
+      }
+    };
+
+    // Hide white "Friend Requests" pill inside Personal tab (even after Firebase re-renders)
+    function purgeDuplicateFriendReqPill() {
+      const fv = document.getElementById("friendsView");
+      if (!fv) return;
+      fv.querySelectorAll("div, span, p, button, h3, h4").forEach(el => {
+        if (el.closest("#inboxFolderBar") || el.closest("#customFolderContainer")) return;
+        const txt = (el.innerText || "").trim();
+        if (/Friend Requests/i.test(txt) && txt.length < 32) {
+          el.style.display = "none";
+        }
+      });
+    }
+
+    // Hide duplicate old native profile block below Facebook-style Profile
+    function hideDuplicateOldProfileBlock() {
+      const pv = document.getElementById("profileView");
+      const fbWrap = document.getElementById("fbProfileContainer");
+      if (!pv || !fbWrap) return;
+      Array.from(pv.children).forEach(ch => {
+        if (ch.id === "fbProfileContainer" || ch.id === "swiftSettingsSubPanel") return;
+        const t = (ch.innerText || "").trim();
+        if (/Your Name|Public|Locked/i.test(t) && ch.querySelector("input, img, button")) {
+          ch.style.display = "none";
+        }
+      });
+    }
+
+    // Re-bind Drag-to-Dismiss behavior on #floatingLiveCallBtn
+    (function setupDragToDismissFab() {
+      const oldFab = document.getElementById("floatingLiveCallBtn");
+      const dismissZone = document.getElementById("fabDismissZone");
+      if (!oldFab || !dismissZone) return;
+
+      // Clone node cleanly to replace previous drag listeners without duplicates
+      const fab = oldFab.cloneNode(true);
+      oldFab.parentNode.replaceChild(fab, oldFab);
+
+      const savedPos = JSON.parse(localStorage.getItem("swiftcart_call_fab_pos") || "null");
+      if (savedPos && typeof savedPos.left === "number" && typeof savedPos.top === "number") {
+        fab.style.left = Math.min(window.innerWidth - 60, Math.max(6, savedPos.left)) + "px";
+        fab.style.top = Math.min(window.innerHeight - 135, Math.max(10, savedPos.top)) + "px";
+        fab.style.right = "auto";
+        fab.style.bottom = "auto";
+      }
+
+      let isDragging = false;
+      let hasMoved = false;
+      let isOverDismiss = false;
+      let startX = 0, startY = 0, origLeft = 0, origTop = 0;
+
+      const checkDismissOverlap = () => {
+        const fRect = fab.getBoundingClientRect();
+        const dRect = dismissZone.getBoundingClientRect();
+        const fCx = fRect.left + fRect.width / 2;
+        const fCy = fRect.top + fRect.height / 2;
+        const dCx = dRect.left + dRect.width / 2;
+        const dCy = dRect.top + dRect.height / 2;
+        const dist = Math.hypot(fCx - dCx, fCy - dCy);
+        isOverDismiss = dist < 62;
+        dismissZone.classList.toggle("hover-active", isOverDismiss);
+      };
+
+      const onStart = (clientX, clientY) => {
+        isDragging = true;
+        hasMoved = false;
+        isOverDismiss = false;
+        const rect = fab.getBoundingClientRect();
+        startX = clientX;
+        startY = clientY;
+        origLeft = rect.left;
+        origTop = rect.top;
+      };
+
+      const onMove = (clientX, clientY) => {
+        if (!isDragging) return;
+        const dx = clientX - startX;
+        const dy = clientY - startY;
+        if (Math.abs(dx) > 6 || Math.abs(dy) > 6) hasMoved = true;
+        if (!hasMoved) return;
+
+        dismissZone.classList.add("visible");
+        const newLeft = Math.min(window.innerWidth - 58, Math.max(4, origLeft + dx));
+        const newTop = Math.min(window.innerHeight - 66, Math.max(8, origTop + dy));
+        fab.style.left = newLeft + "px";
+        fab.style.top = newTop + "px";
+        fab.style.right = "auto";
+        fab.style.bottom = "auto";
+        checkDismissOverlap();
+      };
+
+      const onEnd = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        dismissZone.classList.remove("visible", "hover-active");
+
+        if (hasMoved && isOverDismiss) {
+          // Dismissed for this session; will reappear when app is killed & reopened!
+          sessionStorage.setItem("swiftcart_call_fab_dismissed", "1");
+          fab.style.display = "none";
+          return;
+        }
+
+        if (hasMoved) {
+          const rect = fab.getBoundingClientRect();
+          const safeTop = Math.min(window.innerHeight - 135, rect.top);
+          fab.style.top = safeTop + "px";
+          localStorage.setItem("swiftcart_call_fab_pos", JSON.stringify({ left: rect.left, top: safeTop }));
+        } else {
+          const tab = getActuallyVisibleTab();
+          openLiveAudioTable(tab === "friends" ? "friends" : "public");
+        }
+      };
+
+      fab.addEventListener("touchstart", (e) => {
+        if (e.touches[0]) onStart(e.touches[0].clientX, e.touches[0].clientY);
+      }, { passive: true });
+      fab.addEventListener("touchmove", (e) => {
+        if (e.touches[0]) onMove(e.touches[0].clientX, e.touches[0].clientY);
+      }, { passive: true });
+      fab.addEventListener("touchend", onEnd);
+
+      fab.addEventListener("mousedown", (e) => {
+        onStart(e.clientX, e.clientY);
+        const mm = (ev) => onMove(ev.clientX, ev.clientY);
+        const mu = () => {
+          window.removeEventListener("mousemove", mm);
+          window.removeEventListener("mouseup", mu);
+          onEnd();
+        };
+        window.addEventListener("mousemove", mm);
+        window.addEventListener("mouseup", mu);
+      });
+    })();
+
+    // Keep visibility & cleanups synced whenever user switches any tab
+    document.addEventListener("click", () => {
+      setTimeout(() => {
+        updateFloatingCallVisibility();
+        purgeDuplicateFriendReqPill();
+        hideDuplicateOldProfileBlock();
+      }, 60);
+    });
+
+    const fvNode = document.getElementById("friendsView");
+    if (fvNode && typeof MutationObserver !== "undefined") {
+      new MutationObserver(() => purgeDuplicateFriendReqPill()).observe(fvNode, { childList: true, subtree: true });
+    }
+
+    setTimeout(() => {
+      updateFloatingCallVisibility();
+      purgeDuplicateFriendReqPill();
+      hideDuplicateOldProfileBlock();
+    }, 1000);
+
     // Initialize everything cleanly
     applyLang();
     loadProfileUI();
@@ -4843,5 +5063,7 @@
     <span class="live-dot"></span>
     <span>📞</span>
   </div>
+  <!-- DRAG-TO-CLOSE CIRCLE FOR FLOATING CALL ICON -->
+  <div id="fabDismissZone">✖</div>
 </body>
 </html>
